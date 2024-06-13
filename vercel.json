@@ -8,7 +8,7 @@
   ],
   "routes": [
     {
-      "src": "/api/roadmap",
+      "src": "/api/roadmap/(?<owner>[^/]+)/(?<repo>[^/]+)/(?<colorScheme>[^/]+)?",
       "dest": "/api/roadmap.js"
     }
   ]
