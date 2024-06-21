@@ -56,7 +56,7 @@ const generateRoadmapSVG = (issues, colorScheme) => {
 };
 
 const fetchIssues = async (owner, repo) => {
-    const response = await axios.get(`https://api.github.com/repos/${owner}/${repo}/issues`);
+    const response = await axios.get(`https://api.github.com/repos/${owner}/${repo}/issues?per_page=100`);
     return response.data;
 };
 
