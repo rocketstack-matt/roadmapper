@@ -1,21 +1,34 @@
 const axios = require('axios');
 
-const createColumn = (title, subtitle, items, xPosition, className, backgroundColor, bandColor, headerColor, subheaderColor) => `
-  <g transform="translate(${xPosition}, 40)" class="${className}">
-    <text x="190" y="-20" style="font-size: 20px; text-anchor: middle; font-family: Arial, sans-serif; font-weight: bold; fill: ${headerColor};">${title}</text>
-    <foreignObject x="10" y="0" width="380" height="40">
+const createColumn = (title, subtitle, items, xPosition, className, accentColor, headerColor, subheaderColor, backgroundColor) => `
+  <g transform="translate(${xPosition}, 0)" class="${className}">
+    <!-- Column background -->
+    <rect x="0" y="0" width="380" height="100%" style="fill: ${backgroundColor}; opacity: 0.03;"></rect>
+
+    <!-- Column header -->
+    <text x="190" y="40" style="font-size: 24px; text-anchor: middle; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-weight: 700; fill: ${headerColor}; letter-spacing: -0.5px;">${title}</text>
+
+    <!-- Subtitle -->
+    <foreignObject x="20" y="55" width="340" height="60">
       <body xmlns="http://www.w3.org/1999/xhtml" style="margin: 0;">
-        <div style="font-size: 14px; font-family: Arial, sans-serif; font-weight: normal; color: ${subheaderColor}; text-align: center; word-wrap: break-word;">${subtitle}</div>
+        <div style="font-size: 13px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-weight: 400; color: ${subheaderColor}; text-align: center; line-height: 1.5; padding: 0 10px;">${subtitle}</div>
       </body>
     </foreignObject>
+
+    <!-- Issues -->
     ${items.map((issue, index) => `
-      <g transform="translate(0, ${(index * 80) + 70})">
-        <rect x="10" y="0" width="380" height="60" style="fill: #fff; rx: 15; ry: 15; filter: drop-shadow(2px 2px 3px rgba(0, 0, 0, 0.1)); stroke: ${backgroundColor}; stroke-opacity: 0.7;"></rect>
-        <rect x="10" y="3" width="10" height="54" style="fill: ${bandColor}; fill-opacity: 0.7; rx: 15; ry: 15;"></rect>
-        <foreignObject x="30" y="10" width="340" height="40" style="overflow: hidden;">
+      <g transform="translate(0, ${(index * 95) + 130})">
+        <!-- Card background -->
+        <rect x="15" y="0" width="350" height="75" rx="8" ry="8" style="fill: #ffffff; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.08));"></rect>
+
+        <!-- Top accent border -->
+        <rect x="15" y="0" width="350" height="4" rx="8" ry="8" style="fill: ${accentColor};"></rect>
+
+        <!-- Issue content -->
+        <foreignObject x="25" y="15" width="330" height="55">
           <body xmlns="http://www.w3.org/1999/xhtml" style="margin: 0;">
-            <a href="${issue.html_url}" target="_blank" style="text-decoration: none;">
-              <h3 style="font-size: 12px; font-family: Arial, sans-serif; font-weight: bold; color: #007bff; margin: 0;">${issue.title}</h3>
+            <a href="${issue.html_url}" target="_blank" style="text-decoration: none; display: block;">
+              <div style="font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-weight: 500; color: #24292f; line-height: 1.4; padding: 8px 10px; word-wrap: break-word; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">${issue.title}</div>
             </a>
           </body>
         </foreignObject>
@@ -28,13 +41,15 @@ const generateRoadmapSVG = (issues, colorScheme) => {
     // Sort issues by number
     issues.sort((a, b) => a.number - b.number);
 
-    let headerColor, subheaderColor;
+    let headerColor, subheaderColor, backgroundColor;
     if (colorScheme === 'light') {
         headerColor = '#ffffff';
-        subheaderColor = '#cccccc';
+        subheaderColor = 'rgba(255, 255, 255, 0.8)';
+        backgroundColor = '#f6f8fa';
     } else { // default to dark
-        headerColor = '#000000';
-        subheaderColor = '#333333';
+        headerColor = '#24292f';
+        subheaderColor = '#57606a';
+        backgroundColor = '#ffffff';
     }
 
     const columns = {
@@ -44,13 +59,20 @@ const generateRoadmapSVG = (issues, colorScheme) => {
     };
 
     const maxItemsCount = Math.max(columns.now.length, columns.later.length, columns.future.length);
-    const svgHeight = 100 + (maxItemsCount * 80); // Calculate height based on the number of items
+    const svgHeight = 140 + (maxItemsCount * 95);
 
     return `
-    <svg viewBox="0 0 1200 ${svgHeight}" xmlns="http://www.w3.org/2000/svg">
-      ${createColumn('Now', "Our top priority. We're probably working on it right now or starting pretty soon.", columns.now, 0, 'now', 'rgba(40, 167, 69, 0.7)', 'rgba(40, 167, 69, 0.7)', headerColor, subheaderColor)}
-      ${createColumn('Later', "Our next priority. We'll work on this soon if everything goes as planned.", columns.later, 400, 'later', 'rgba(255, 193, 7, 0.7)', 'rgba(255, 193, 7, 0.7)', headerColor, subheaderColor)}
-      ${createColumn('Future', "Not a priority. We're considering working on this but it's too early to know when.", columns.future, 800, 'future', 'rgba(108, 117, 125, 0.7)', 'rgba(108, 117, 125, 0.7)', headerColor, subheaderColor)}
+    <svg viewBox="0 0 1140 ${svgHeight}" xmlns="http://www.w3.org/2000/svg" style="background-color: ${backgroundColor};">
+      <defs>
+        <style>
+          .roadmap-card:hover rect:first-child {
+            filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.12));
+          }
+        </style>
+      </defs>
+      ${createColumn('Now', "We're working on it right now", columns.now, 0, 'now', '#2da44e', headerColor, subheaderColor, backgroundColor)}
+      ${createColumn('Later', "Next up on our roadmap", columns.later, 380, 'later', '#fb8500', headerColor, subheaderColor, backgroundColor)}
+      ${createColumn('Future', "Planned for the future", columns.future, 760, 'future', '#8b949e', headerColor, subheaderColor, backgroundColor)}
     </svg>
   `;
 };
