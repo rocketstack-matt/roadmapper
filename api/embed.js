@@ -29,7 +29,7 @@ module.exports = async (req, res) => {
     const svgHeight = 140 + (maxItemsCount * 95);
     const svgWidth = 1140;
 
-    const imageUrl = `https://roadmapper-theta.vercel.app/api/roadmap/${owner}/${repo}/${colorScheme}`;
+    const imageUrl = `https://roadmapper.rocketstack.co/api/roadmap/${owner}/${repo}/${colorScheme}`;
 
     // Generate image map areas for each card
     let mapAreas = '';

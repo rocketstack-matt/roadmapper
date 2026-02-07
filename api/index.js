@@ -289,7 +289,7 @@ module.exports = async (req, res) => {
         <h3>3. Generate Your Roadmap</h3>
         <p>Use this URL format:</p>
         <div class="url-pattern">
-          https://roadmapper-theta.vercel.app/api/roadmap/{owner}/{repo}/{colorScheme}
+          https://roadmapper.rocketstack.co/api/roadmap/{owner}/{repo}/{colorScheme}
         </div>
 
         <h3>Parameters</h3>
@@ -304,18 +304,18 @@ module.exports = async (req, res) => {
         <h2>Examples</h2>
 
         <h3>Dark Theme (Default)</h3>
-        <div class="code-block"><code>![Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/facebook/react/dark)</code></div>
+        <div class="code-block"><code>![Roadmap](https://roadmapper.rocketstack.co/api/roadmap/facebook/react/dark)</code></div>
 
         <h3>Light Theme</h3>
-        <div class="code-block"><code>![Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/your-username/your-repo/light)</code></div>
+        <div class="code-block"><code>![Roadmap](https://roadmapper.rocketstack.co/api/roadmap/your-username/your-repo/light)</code></div>
 
         <h3>Interactive Viewer (Recommended)</h3>
         <p>Link to the interactive viewer page where users can click on roadmap items:</p>
-        <div class="code-block"><code>[![Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/your-username/your-repo/dark)](https://roadmapper-theta.vercel.app/view/your-username/your-repo/dark)</code></div>
+        <div class="code-block"><code>[![Roadmap](https://roadmapper.rocketstack.co/api/roadmap/your-username/your-repo/dark)](https://roadmapper.rocketstack.co/view/your-username/your-repo/dark)</code></div>
 
         <h3>Static Image</h3>
         <p>If you just want to display a static roadmap image:</p>
-        <div class="code-block"><code>![Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/your-username/your-repo/dark)</code></div>
+        <div class="code-block"><code>![Roadmap](https://roadmapper.rocketstack.co/api/roadmap/your-username/your-repo/dark)</code></div>
 
         <p style="margin-top: 16px; padding: 16px; background: #fff3cd; border-radius: 6px; font-size: 14px;">
           <strong>Note:</strong> Due to GitHub's security restrictions, embedded SVGs cannot have clickable links. Use the interactive viewer link to allow users to click on roadmap items.
@@ -323,7 +323,7 @@ module.exports = async (req, res) => {
 
         <h3>Live Example</h3>
         <p>Here's what a roadmap looks like:</p>
-        <img class="example-image" src="https://roadmapper-theta.vercel.app/api/roadmap/rocketstack-matt/roadmapper/dark" alt="Example Roadmap" />
+        <img class="example-image" src="https://roadmapper.rocketstack.co/api/roadmap/rocketstack-matt/roadmapper/dark" alt="Example Roadmap" />
       </div>
 
       <div class="section">

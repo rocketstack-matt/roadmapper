@@ -11,7 +11,7 @@ module.exports = async (req, res) => {
   const repo = match[2];
   const colorScheme = match[3] || 'dark';
 
-  const svgUrl = `https://roadmapper-theta.vercel.app/api/roadmap/${owner}/${repo}/${colorScheme}`;
+  const svgUrl = `https://roadmapper.rocketstack.co/api/roadmap/${owner}/${repo}/${colorScheme}`;
 
   const html = `
 <!DOCTYPE html>
@@ -105,7 +105,7 @@ module.exports = async (req, res) => {
     </div>
 
     <div class="footer">
-      <p>Powered by <a href="https://roadmapper-theta.vercel.app" target="_blank">Roadmapper</a> · Click any item to view the issue on GitHub</p>
+      <p>Powered by <a href="https://roadmapper.rocketstack.co" target="_blank">Roadmapper</a> · Click any item to view the issue on GitHub</p>
     </div>
   </div>
 </body>

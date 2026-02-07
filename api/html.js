@@ -28,7 +28,7 @@ module.exports = async (req, res) => {
     const maxItemsCount = Math.max(columns.now.length, columns.later.length, columns.future.length);
     const svgHeight = 140 + (maxItemsCount * 95);
 
-    const imageUrl = `https://roadmapper-theta.vercel.app/api/roadmap/${owner}/${repo}/${colorScheme}`;
+    const imageUrl = `https://roadmapper.rocketstack.co/api/roadmap/${owner}/${repo}/${colorScheme}`;
 
     // Generate image map areas for each card
     const createAreas = (items, columnIndex) => {
@@ -166,7 +166,7 @@ ${mapAreas}
       <h2>HTML Code</h2>
       <div class="warning">
         <strong>⚠️ GitHub Limitation:</strong> GitHub's markdown renderer may not support HTML image maps for security reasons.
-        If this doesn't work in your README, use the <a href="https://roadmapper-theta.vercel.app/view/${owner}/${repo}/${colorScheme}" style="color: #0969da;">viewer link approach</a> instead.
+        If this doesn't work in your README, use the <a href="https://roadmapper.rocketstack.co/view/${owner}/${repo}/${colorScheme}" style="color: #0969da;">viewer link approach</a> instead.
       </div>
       <p style="margin-bottom: 12px;">Copy and paste this HTML into your README.md:</p>
       <div class="code-block"><code>${htmlSnippet.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></div>
@@ -176,7 +176,7 @@ ${mapAreas}
     <div class="section">
       <h2>Alternative: Link to Viewer Page</h2>
       <p style="margin-bottom: 12px; color: #57606a;">If the HTML image map doesn't work in GitHub, use this markdown instead:</p>
-      <div class="code-block"><code>[![Roadmap](${imageUrl})](https://roadmapper-theta.vercel.app/view/${owner}/${repo}/${colorScheme})</code></div>
+      <div class="code-block"><code>[![Roadmap](${imageUrl})](https://roadmapper.rocketstack.co/view/${owner}/${repo}/${colorScheme})</code></div>
     </div>
   </div>
 
