@@ -66,37 +66,102 @@ ${mapAreas}
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${owner}/${repo} - Roadmap HTML</title>
   <style>
+    :root {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f6f8fa;
+      --text-primary: #1a1a1a;
+      --text-secondary: #57606a;
+      --border-color: #e1e4e8;
+      --accent-blue: #1E88E5;
+      --accent-teal: #26A69A;
+      --accent-green: #66BB6A;
+      --code-bg: #f6f8fa;
+    }
+
+    [data-theme="dark"] {
+      --bg-primary: #0d1117;
+      --bg-secondary: #161b22;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --border-color: #30363d;
+      --code-bg: #161b22;
+    }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-      background: #f6f8fa;
+      background: var(--bg-secondary);
+      color: var(--text-primary);
       padding: 40px 20px;
+      transition: background-color 0.3s ease, color 0.3s ease;
     }
     .container {
       max-width: 1200px;
       margin: 0 auto;
-      background: white;
+      background: var(--bg-primary);
       border-radius: 12px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
       overflow: hidden;
     }
     .header {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
+      background: var(--bg-primary);
+      border-bottom: 1px solid var(--border-color);
       padding: 30px 40px;
       text-align: center;
+      position: relative;
     }
-    .header h1 { font-size: 28px; margin-bottom: 8px; }
-    .header p { opacity: 0.9; }
+    .logo-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .logo-container img {
+      height: 35px;
+      width: auto;
+    }
+    .logo-text {
+      font-size: 20px;
+      font-weight: 600;
+      background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-teal) 50%, var(--accent-green) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .theme-toggle {
+      position: absolute;
+      top: 30px;
+      right: 40px;
+      background: none;
+      border: 1px solid var(--border-color);
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      color: var(--text-primary);
+      transition: all 0.3s ease;
+    }
+    .theme-toggle:hover {
+      background: var(--bg-secondary);
+    }
+    .header h1 {
+      font-size: 24px;
+      margin-bottom: 8px;
+      color: var(--text-primary);
+    }
+    .header p {
+      color: var(--text-secondary);
+    }
     .section {
       padding: 40px;
-      border-bottom: 1px solid #e1e4e8;
+      border-bottom: 1px solid var(--border-color);
     }
     .section:last-child { border-bottom: none; }
     .section h2 {
       font-size: 20px;
       margin-bottom: 16px;
-      color: #24292f;
+      color: var(--text-primary);
     }
     .warning {
       background: #fff3cd;
@@ -106,10 +171,25 @@ ${mapAreas}
       margin: 20px 0;
       color: #856404;
     }
-    .warning strong { color: #856404; }
+    [data-theme="dark"] .warning {
+      background: #3d3000;
+      border-color: #8a6d00;
+      color: #ffc107;
+    }
+    .warning strong { color: inherit; }
+    .warning a {
+      color: #0969da;
+      text-decoration: none;
+    }
+    [data-theme="dark"] .warning a {
+      color: #58a6ff;
+    }
+    .warning a:hover {
+      text-decoration: underline;
+    }
     .code-block {
-      background: #f6f8fa;
-      border: 1px solid #e1e4e8;
+      background: var(--code-bg);
+      border: 1px solid var(--border-color);
       border-radius: 6px;
       padding: 16px;
       overflow-x: auto;
@@ -118,11 +198,11 @@ ${mapAreas}
       line-height: 1.6;
     }
     .code-block code {
-      color: #24292f;
+      color: var(--text-primary);
       white-space: pre;
     }
     .copy-btn {
-      background: #2da44e;
+      background: var(--accent-green);
       color: white;
       border: none;
       padding: 10px 20px;
@@ -131,26 +211,38 @@ ${mapAreas}
       font-size: 14px;
       font-weight: 600;
       margin-top: 12px;
+      transition: all 0.3s ease;
     }
     .copy-btn:hover {
-      background: #2c974b;
+      opacity: 0.9;
+      transform: translateY(-1px);
     }
     .preview-container {
-      border: 1px solid #e1e4e8;
+      border: 1px solid var(--border-color);
       border-radius: 6px;
       padding: 20px;
-      background: white;
+      background: var(--bg-primary);
     }
     img {
       max-width: 100%;
       height: auto;
       display: block;
     }
+    p {
+      color: var(--text-secondary);
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
+      <button class="theme-toggle" onclick="toggleTheme()">
+        <span class="theme-icon">🌙</span>
+      </button>
+      <div class="logo-container">
+        <img src="/logo.svg" alt="Roadmapper Logo">
+        <div class="logo-text">Roadmapper</div>
+      </div>
       <h1>HTML Code for ${owner}/${repo}</h1>
       <p>Copy the HTML below to embed in your README</p>
     </div>
@@ -181,15 +273,31 @@ ${mapAreas}
   </div>
 
   <script>
+    // Theme management
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    updateThemeIcon(savedTheme);
+
+    function toggleTheme() {
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      updateThemeIcon(newTheme);
+    }
+
+    function updateThemeIcon(theme) {
+      const icon = document.querySelector('.theme-icon');
+      icon.textContent = theme === 'dark' ? '☀️' : '🌙';
+    }
+
     function copyCode() {
       const code = \`${htmlSnippet.replace(/`/g, '\\`')}\`;
       navigator.clipboard.writeText(code).then(() => {
         const btn = document.querySelector('.copy-btn');
         btn.textContent = 'Copied!';
-        btn.style.background = '#2c974b';
         setTimeout(() => {
           btn.textContent = 'Copy to Clipboard';
-          btn.style.background = '#2da44e';
         }, 2000);
       });
     }

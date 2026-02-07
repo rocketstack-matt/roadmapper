@@ -1,8 +1,8 @@
-<p align="center">
+<p align="center" style="margin-bottom: 8px;">
   <img src="https://roadmapper.rocketstack.co/logo.svg" alt="Roadmapper Logo" width="200">
 </p>
 
-<h1 align="center">Roadmapper</h1>
+<h1 align="center" style="margin-top: 0;">Roadmapper</h1>
 
 <p align="center">
   <strong>Transform your GitHub issues into beautiful, visual roadmaps</strong>
@@ -111,7 +111,7 @@ If you're embedding in a website or documentation site that supports HTML, you c
 <iframe src="https://roadmapper.rocketstack.co/embed/your-username/your-repo/dark" width="100%" height="520" frameborder="0"></iframe>
 ```
 
-Or [generate HTML code](https://roadmapper.rocketstack.co/html/your-username/your-repo/dark) with image maps for more direct embedding.
+Or [generate HTML code](https://roadmapper.rocketstack.co/html/rocketstack-matt/roadmapper/dark) with image maps for more direct embedding (replace `rocketstack-matt/roadmapper` with your repository).
 
 > **GitHub Limitation:** GitHub's markdown renderer strips iframes and may not support HTML image maps for security reasons. For GitHub READMEs, use the recommended link approach above.
 
@@ -168,12 +168,19 @@ Roadmapper looks for these exact label names on your GitHub issues:
 - **`Roadmap: Later`**: Items appear in the yellow "Later" column
 - **`Roadmap: Future`**: Items appear in the gray "Future" column
 
+### Label Colors
+
+Roadmapper automatically uses the actual colors from your GitHub labels on the roadmap cards. Each card displays a colored accent border at the top that matches the color you've set for that label in your GitHub repository. This allows you to customize the appearance of your roadmap by simply changing the label colors in GitHub - no configuration needed!
+
+If a label color cannot be determined, the card will use a default gray color.
+
 Issues are automatically sorted by issue number within each column.
 
 ## Features
 
 - ✨ Clean, modern SVG output
 - 🎨 Dark and light color schemes
+- 🎨 Automatic label color matching from GitHub
 - 🔄 Real-time updates from GitHub issues
 - 📱 Responsive design
 - 🚀 Serverless deployment ready
