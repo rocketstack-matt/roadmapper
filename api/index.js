@@ -265,6 +265,57 @@ module.exports = async (req, res) => {
       white-space: pre;
     }
 
+    /* Embed Tabs */
+    .embed-tabs {
+      display: flex;
+      gap: 12px;
+      margin: 32px 0 24px 0;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .embed-tab {
+      background: var(--bg-primary);
+      border: 2px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    }
+
+    .embed-tab:hover {
+      border-color: var(--accent-blue);
+      transform: translateY(-2px);
+    }
+
+    .embed-tab.active {
+      background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-teal) 100%);
+      border-color: var(--accent-blue);
+      color: white;
+    }
+
+    .embed-content {
+      margin-top: 24px;
+    }
+
+    .embed-option {
+      display: none;
+    }
+
+    .embed-option.active {
+      display: block;
+    }
+
+    .embed-description {
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+
     /* Steps */
     .steps {
       display: grid;
@@ -450,23 +501,34 @@ module.exports = async (req, res) => {
   <section class="section" id="get-started">
     <div class="container">
       <h2 class="section-title">Get Started</h2>
+      <p class="section-description">Choose your embedding method:</p>
 
-      <h3 style="margin-top: 24px; margin-bottom: 16px; font-size: 20px;">For GitHub READMEs</h3>
-      <p class="section-description">Link to the viewer page for clickable cards (GitHub strips interactive elements from embedded images):</p>
+      <div class="embed-tabs">
+        <button class="embed-tab active" onclick="showEmbedOption('github')">GitHub README</button>
+        <button class="embed-tab" onclick="showEmbedOption('iframe')">Website (iframe)</button>
+        <button class="embed-tab" onclick="showEmbedOption('html')">HTML Image Map</button>
+      </div>
 
-      <div class="code-block"><code>[![Roadmap](https://roadmapper.rocketstack.co/your-username/your-repo/dark)](https://roadmapper.rocketstack.co/view/your-username/your-repo/dark)
+      <div class="embed-content">
+        <div id="embed-github" class="embed-option active">
+          <p class="embed-description">For GitHub READMEs - Link to the viewer page for clickable cards (GitHub strips interactive elements from embedded images):</p>
+          <div class="code-block"><code>[![Roadmap](https://roadmapper.rocketstack.co/your-username/your-repo/dark)](https://roadmapper.rocketstack.co/view/your-username/your-repo/dark)
 
 > Click the roadmap to view the interactive version with clickable cards.</code></div>
+        </div>
 
-      <h3 style="margin-top: 48px; margin-bottom: 16px; font-size: 20px;">For Websites & Documentation</h3>
-      <p class="section-description">Embed directly with clickable cards using an iframe:</p>
-
-      <div class="code-block"><code>&lt;iframe src="https://roadmapper.rocketstack.co/embed/your-username/your-repo/dark"
+        <div id="embed-iframe" class="embed-option">
+          <p class="embed-description">For websites and documentation - Embed directly with clickable cards using an iframe:</p>
+          <div class="code-block"><code>&lt;iframe src="https://roadmapper.rocketstack.co/embed/your-username/your-repo/dark"
         width="100%" height="520" frameborder="0"&gt;&lt;/iframe&gt;</code></div>
+        </div>
 
-      <p class="section-description" style="margin-top: 24px;">Or use HTML image maps for direct embedding:</p>
-
-      <div class="code-block"><code>&lt;!-- Visit https://roadmapper.rocketstack.co/html/your-username/your-repo/dark to generate --&gt;</code></div>
+        <div id="embed-html" class="embed-option">
+          <p class="embed-description">For advanced embedding - Use HTML image maps for direct embedding with clickable regions:</p>
+          <div class="code-block"><code>&lt;!-- Visit the link below to generate the HTML code --&gt;
+https://roadmapper.rocketstack.co/html/your-username/your-repo/dark</code></div>
+        </div>
+      </div>
 
       <h3 style="margin-top: 48px; margin-bottom: 24px; text-align: center; font-size: 24px;">URL Format</h3>
       <div class="code-block"><code>https://roadmapper.rocketstack.co/{owner}/{repo}/{colorScheme}</code></div>
@@ -566,6 +628,25 @@ module.exports = async (req, res) => {
     const savedTheme = localStorage.getItem('theme') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
     updateThemeButton(savedTheme);
+
+    // Embed option toggle
+    function showEmbedOption(option) {
+      // Hide all options
+      document.querySelectorAll('.embed-option').forEach(el => {
+        el.classList.remove('active');
+      });
+
+      // Remove active state from all tabs
+      document.querySelectorAll('.embed-tab').forEach(el => {
+        el.classList.remove('active');
+      });
+
+      // Show selected option
+      document.getElementById('embed-' + option).classList.add('active');
+
+      // Add active state to clicked tab
+      event.target.classList.add('active');
+    }
   </script>
 </body>
 </html>
