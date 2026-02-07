@@ -3,7 +3,7 @@ const { generateRoadmapSVG, fetchIssues } = require('../roadmap');
 module.exports = async (req, res) => {
   // Extract the path from the URL
   const url = req.url;
-  const match = url.match(/\/api\/roadmap\/([^/]+)\/([^/]+)\/?([^/]*)/);
+  const match = url.match(/^\/([^/]+)\/([^/]+)\/?([^/]*)/);
 
   if (!match) {
     return res.status(400).send('Invalid URL format');
