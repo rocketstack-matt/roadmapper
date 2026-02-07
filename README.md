@@ -35,7 +35,7 @@ Simply label your GitHub issues with `Roadmap: Now`, `Roadmap: Later`, or `Roadm
 
 Here's what this project's roadmap looks like:
 
-[![Roadmap](https://roadmapper.rocketstack.co/rocketstack-matt/roadmapper/dark)](https://roadmapper.rocketstack.co/view/rocketstack-matt/roadmapper/dark)
+[![Roadmap](https://roadmapper.rocketstack.co/rocketstack-matt/roadmapper/ffffff/24292f)](https://roadmapper.rocketstack.co/view/rocketstack-matt/roadmapper/ffffff/24292f)
 
 > **💡 Click the roadmap image above** to open the interactive viewer where each card is clickable and links directly to its GitHub issue. Due to GitHub's security restrictions, roadmap cards cannot be made clickable when embedded directly in markdown.
 
@@ -48,12 +48,12 @@ Here's what this project's roadmap looks like:
 
 2. **Generate your roadmap**: Use the URL format:
    ```
-   https://roadmapper.rocketstack.co/{owner}/{repo}/{colorScheme}
+   https://roadmapper.rocketstack.co/{owner}/{repo}/{bgColor}/{textColor}
    ```
 
 3. **Add to your README**: Link to the interactive viewer page where users can click on items:
    ```markdown
-   [![Roadmap](https://roadmapper.rocketstack.co/owner/repo/dark)](https://roadmapper.rocketstack.co/view/owner/repo/dark)
+   [![Roadmap](https://roadmapper.rocketstack.co/owner/repo/ffffff/24292f)](https://roadmapper.rocketstack.co/view/owner/repo/ffffff/24292f)
    ```
 
 ## Usage
@@ -61,24 +61,30 @@ Here's what this project's roadmap looks like:
 ### URL Format
 
 ```
-https://roadmapper.rocketstack.co/{owner}/{repo}/{colorScheme}
+https://roadmapper.rocketstack.co/{owner}/{repo}/{bgColor}/{textColor}
 ```
 
 **Parameters:**
 - `owner` (required): GitHub repository owner/organization
 - `repo` (required): GitHub repository name
-- `colorScheme` (optional): Either `dark` or `light` (defaults to `dark`)
+- `bgColor` (required): Background color as hex code without # (e.g., `ffffff`, `f6f8fa`)
+- `textColor` (required): Text color as hex code without # (e.g., `24292f`, `000000`)
 
 ### Examples
 
-**Dark theme (default):**
+**White background with dark text:**
 ```
-https://roadmapper.rocketstack.co/facebook/react/dark
+https://roadmapper.rocketstack.co/facebook/react/ffffff/24292f
 ```
 
-**Light theme:**
+**Dark background with light text:**
 ```
-https://roadmapper.rocketstack.co/facebook/react/light
+https://roadmapper.rocketstack.co/facebook/react/0d1117/e6edf3
+```
+
+**Light gray background with dark text (GitHub style):**
+```
+https://roadmapper.rocketstack.co/facebook/react/f6f8fa/24292f
 ```
 
 ### In Your README
@@ -90,7 +96,7 @@ This shows a preview image that links to a page where each card is clickable:
 ```markdown
 ## Roadmap
 
-[![Roadmap](https://roadmapper.rocketstack.co/your-username/your-repo/dark)](https://roadmapper.rocketstack.co/view/your-username/your-repo/dark)
+[![Roadmap](https://roadmapper.rocketstack.co/your-username/your-repo/ffffff/24292f)](https://roadmapper.rocketstack.co/view/your-username/your-repo/ffffff/24292f)
 
 > Click the roadmap to view the interactive version with clickable cards.
 ```
@@ -100,7 +106,7 @@ This shows a preview image that links to a page where each card is clickable:
 If you just want a static roadmap image without clickable links:
 
 ```markdown
-![Roadmap](https://roadmapper.rocketstack.co/your-username/your-repo/dark)
+![Roadmap](https://roadmapper.rocketstack.co/your-username/your-repo/ffffff/24292f)
 ```
 
 **For Documentation Sites (Non-GitHub)**
@@ -108,22 +114,34 @@ If you just want a static roadmap image without clickable links:
 If you're embedding in a website or documentation site that supports HTML, you can use the clickable embed:
 
 ```html
-<iframe src="https://roadmapper.rocketstack.co/embed/your-username/your-repo/dark" width="100%" height="520" frameborder="0"></iframe>
+<iframe src="https://roadmapper.rocketstack.co/embed/your-username/your-repo/ffffff/24292f" width="100%" height="520" frameborder="0"></iframe>
 ```
 
-Or [generate HTML code](https://roadmapper.rocketstack.co/html/rocketstack-matt/roadmapper/dark) with image maps for more direct embedding (replace `rocketstack-matt/roadmapper` with your repository).
+Or [generate HTML code](https://roadmapper.rocketstack.co/html/rocketstack-matt/roadmapper/ffffff/24292f) with image maps for more direct embedding (replace `rocketstack-matt/roadmapper` with your repository).
 
 > **GitHub Limitation:** GitHub's markdown renderer strips iframes and may not support HTML image maps for security reasons. For GitHub READMEs, use the recommended link approach above.
 
-## Color Schemes
+## Custom Colors
 
-### Dark Theme
-- Best for dark backgrounds or standard GitHub README files
-- Black headers with dark gray subheaders
+Roadmapper supports fully customizable colors for your roadmap. You can specify:
+- **Background color** (`bgColor`): Used for the roadmap background and card backgrounds
+- **Text color** (`textColor`): Used for all text, headers, and drop shadows
 
-### Light Theme
-- Best for light backgrounds or custom documentation
-- White headers with light gray subheaders
+Colors are specified as hex codes **without the # symbol**. Both 3-digit and 6-digit hex codes are supported.
+
+### Color Examples
+
+- **Classic light**: `ffffff/24292f` - White background, dark text
+- **GitHub style**: `f6f8fa/24292f` - Light gray background, dark text
+- **Dark mode**: `0d1117/e6edf3` - Dark background, light text
+- **Navy**: `001f3f/ffffff` - Navy background, white text
+- **Forest**: `2c5f2d/ffffff` - Forest green background, white text
+
+### Color Tips
+
+- Use high contrast between background and text for readability
+- The label accent colors (from your GitHub labels) will still show on card borders
+- Invalid hex codes will fall back to white background with dark text
 
 ## Setup & Development
 
@@ -148,7 +166,12 @@ The server will start on port 5002 (or the port specified in the `PORT` environm
 
 Access your roadmap locally at:
 ```
-http://localhost:5002/roadmap/{owner}/{repo}/{colorScheme}
+http://localhost:5002/{owner}/{repo}/{bgColor}/{textColor}
+```
+
+Example:
+```
+http://localhost:5002/rocketstack-matt/roadmapper/ffffff/24292f
 ```
 
 ## Deployment
@@ -179,7 +202,7 @@ Issues are automatically sorted by issue number within each column.
 ## Features
 
 - ✨ Clean, modern SVG output
-- 🎨 Dark and light color schemes
+- 🎨 Fully customizable colors (background and text)
 - 🎨 Automatic label color matching from GitHub
 - 🔄 Real-time updates from GitHub issues
 - 📱 Responsive design
@@ -192,7 +215,33 @@ Roadmapper uses the public GitHub API, which has rate limits:
 - **Unauthenticated requests**: 60 requests per hour per IP
 - **Authenticated requests**: 5,000 requests per hour
 
-For high-traffic use cases, consider caching the SVG output or implementing GitHub token authentication.
+### Adding GitHub Authentication (Recommended for Production)
+
+To increase the rate limit to 5,000 requests/hour, add a GitHub Personal Access Token:
+
+1. **Create a GitHub Personal Access Token:**
+   - Go to https://github.com/settings/tokens
+   - Click "Generate new token (classic)"
+   - Give it a name like "Roadmapper"
+   - Select scope: **`public_repo`** (read access to public repositories)
+   - Click "Generate token" and copy the token
+
+2. **Add the token to your environment:**
+
+   **For local development:**
+   ```bash
+   # Create a .env file in the project root
+   echo "GITHUB_TOKEN=your_token_here" > .env
+   ```
+
+   **For production (Vercel):**
+   - Go to your Vercel project settings
+   - Navigate to "Environment Variables"
+   - Add: `GITHUB_TOKEN` = `your_token_here`
+
+3. **Restart the server** - The token will be automatically used for all GitHub API requests.
+
+**Security Note:** Never commit your `.env` file or expose your token in public repositories.
 
 ## License
 

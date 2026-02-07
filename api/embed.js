@@ -3,15 +3,28 @@ const { generateRoadmapSVG, fetchIssues } = require('../roadmap');
 module.exports = async (req, res) => {
   // Extract the path from the URL
   const url = req.url;
-  const match = url.match(/\/embed\/([^/]+)\/([^/]+)\/?([^/]*)/);
+  let match = url.match(/\/embed\/([^/]+)\/([^/]+)\/([^/]+)\/([^/]+)\/?/);
 
+  // If no match, check for 2-parameter format and redirect to defaults
   if (!match) {
-    return res.status(400).send('Invalid URL format');
+    const fallbackMatch = url.match(/\/embed\/([^/]+)\/([^/]+)\/?$/);
+    if (fallbackMatch) {
+      const owner = fallbackMatch[1];
+      const repo = fallbackMatch[2];
+      return res.redirect(301, `/embed/${owner}/${repo}/ffffff/24292f`);
+    }
+    return res.status(400).send('Invalid URL format. Expected: /embed/:owner/:repo/:bgColor/:textColor');
   }
 
   const owner = match[1];
   const repo = match[2];
-  const colorScheme = match[3] || 'dark';
+  const bgColor = match[3];
+  const textColor = match[4];
+
+  // Detect environment: use localhost for local development, production URL otherwise
+  const host = req.headers.host || 'roadmapper.rocketstack.co';
+  const protocol = host.includes('localhost') ? 'http' : 'https';
+  const baseUrl = `${protocol}://${host}`;
 
   try {
     const issues = await fetchIssues(owner, repo);
@@ -29,7 +42,7 @@ module.exports = async (req, res) => {
     const svgHeight = 140 + (maxItemsCount * 95);
     const svgWidth = 1140;
 
-    const imageUrl = `https://roadmapper.rocketstack.co/${owner}/${repo}/${colorScheme}`;
+    const imageUrl = `${baseUrl}/${owner}/${repo}/${bgColor}/${textColor}`;
 
     // Generate image map areas for each card
     let mapAreas = '';

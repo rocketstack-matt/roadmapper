@@ -593,7 +593,7 @@ module.exports = async (req, res) => {
       <h2 class="section-title">Live Example</h2>
       <p class="section-description">Click on any card to view the issue on GitHub</p>
       <div class="example-container">
-        <iframe src="https://roadmapper.rocketstack.co/embed/rocketstack-matt/roadmapper/dark" width="100%" height="520" frameborder="0" style="border: none; border-radius: 8px;"></iframe>
+        <iframe src="https://roadmapper.rocketstack.co/embed/rocketstack-matt/roadmapper/ffffff/24292f" width="100%" height="520" frameborder="0" style="border: none; border-radius: 8px;"></iframe>
       </div>
     </div>
   </section>
@@ -609,7 +609,7 @@ module.exports = async (req, res) => {
         <p class="url-format-description">Every roadmap has a unique URL based on your GitHub repository. This URL generates a live SVG that updates automatically when your issues change.</p>
 
         <div class="url-format-code">
-          <code>https://roadmapper.rocketstack.co/<span class="url-param">{owner}</span>/<span class="url-param">{repo}</span>/<span class="url-param-optional">{colorScheme}</span></code>
+          <code>https://roadmapper.rocketstack.co/<span class="url-param">{owner}</span>/<span class="url-param">{repo}</span>/<span class="url-param">{bgColor}</span>/<span class="url-param">{textColor}</span></code>
         </div>
 
         <div class="url-params">
@@ -622,13 +622,18 @@ module.exports = async (req, res) => {
             <span>Your repository name</span>
           </div>
           <div class="url-param-item">
-            <strong>colorScheme</strong>
-            <span>"dark" or "light" (optional, defaults to "dark")</span>
+            <strong>bgColor</strong>
+            <span>Background color as hex (without #)</span>
+          </div>
+          <div class="url-param-item">
+            <strong>textColor</strong>
+            <span>Text color as hex (without #)</span>
           </div>
         </div>
 
         <div class="url-example">
-          <strong>Example:</strong> <code>https://roadmapper.rocketstack.co/rocketstack-matt/roadmapper/dark</code>
+          <strong>Example:</strong> <code>https://roadmapper.rocketstack.co/rocketstack-matt/roadmapper/ffffff/24292f</code>
+          <p style="margin-top: 8px; color: var(--text-secondary); font-size: 14px;">This creates a white background (ffffff) with dark text (24292f)</p>
         </div>
       </div>
 
@@ -645,21 +650,21 @@ module.exports = async (req, res) => {
       <div class="embed-content">
         <div id="embed-github" class="embed-option active">
           <p class="embed-description">For GitHub READMEs - Link to the viewer page for clickable cards (GitHub strips interactive elements from embedded images):</p>
-          <div class="code-block"><code>[![Roadmap](https://roadmapper.rocketstack.co/your-username/your-repo/dark)](https://roadmapper.rocketstack.co/view/your-username/your-repo/dark)
+          <div class="code-block"><code>[![Roadmap](https://roadmapper.rocketstack.co/your-username/your-repo/ffffff/24292f)](https://roadmapper.rocketstack.co/view/your-username/your-repo/ffffff/24292f)
 
 > Click the roadmap to view the interactive version with clickable cards.</code></div>
         </div>
 
         <div id="embed-iframe" class="embed-option">
           <p class="embed-description">For websites and documentation - Embed directly with clickable cards using an iframe:</p>
-          <div class="code-block"><code>&lt;iframe src="https://roadmapper.rocketstack.co/embed/your-username/your-repo/dark"
+          <div class="code-block"><code>&lt;iframe src="https://roadmapper.rocketstack.co/embed/your-username/your-repo/ffffff/24292f"
         width="100%" height="520" frameborder="0"&gt;&lt;/iframe&gt;</code></div>
         </div>
 
         <div id="embed-html" class="embed-option">
           <p class="embed-description">For advanced embedding - Use HTML image maps for direct embedding with clickable regions:</p>
           <div class="code-block"><code>&lt;!-- Visit the link below to generate the HTML code --&gt;
-https://roadmapper.rocketstack.co/html/your-username/your-repo/dark</code></div>
+https://roadmapper.rocketstack.co/html/your-username/your-repo/ffffff/24292f</code></div>
         </div>
       </div>
     </div>

@@ -3,15 +3,28 @@ const { fetchIssues } = require('../roadmap');
 module.exports = async (req, res) => {
   // Extract the path from the URL
   const url = req.url;
-  const match = url.match(/\/html\/([^/]+)\/([^/]+)\/?([^/]*)/);
+  let match = url.match(/\/html\/([^/]+)\/([^/]+)\/([^/]+)\/([^/]+)\/?/);
 
+  // If no match, check for 2-parameter format and redirect to defaults
   if (!match) {
-    return res.status(400).send('Invalid URL format');
+    const fallbackMatch = url.match(/\/html\/([^/]+)\/([^/]+)\/?$/);
+    if (fallbackMatch) {
+      const owner = fallbackMatch[1];
+      const repo = fallbackMatch[2];
+      return res.redirect(301, `/html/${owner}/${repo}/ffffff/24292f`);
+    }
+    return res.status(400).send('Invalid URL format. Expected: /html/:owner/:repo/:bgColor/:textColor');
   }
 
   const owner = match[1];
   const repo = match[2];
-  const colorScheme = match[3] || 'dark';
+  const bgColor = match[3];
+  const textColor = match[4];
+
+  // Detect environment: use localhost for local development, production URL otherwise
+  const host = req.headers.host || 'roadmapper.rocketstack.co';
+  const protocol = host.includes('localhost') ? 'http' : 'https';
+  const baseUrl = `${protocol}://${host}`;
 
   try {
     const issues = await fetchIssues(owner, repo);
@@ -28,7 +41,7 @@ module.exports = async (req, res) => {
     const maxItemsCount = Math.max(columns.now.length, columns.later.length, columns.future.length);
     const svgHeight = 140 + (maxItemsCount * 95);
 
-    const imageUrl = `https://roadmapper.rocketstack.co/${owner}/${repo}/${colorScheme}`;
+    const imageUrl = `${baseUrl}/${owner}/${repo}/${bgColor}/${textColor}`;
 
     // Generate image map areas for each card
     const createAreas = (items, columnIndex) => {
@@ -258,7 +271,7 @@ ${mapAreas}
       <h2>HTML Code</h2>
       <div class="warning">
         <strong>⚠️ GitHub Limitation:</strong> GitHub's markdown renderer may not support HTML image maps for security reasons.
-        If this doesn't work in your README, use the <a href="https://roadmapper.rocketstack.co/view/${owner}/${repo}/${colorScheme}" style="color: #0969da;">viewer link approach</a> instead.
+        If this doesn't work in your README, use the <a href="${baseUrl}/view/${owner}/${repo}/${bgColor}/${textColor}" style="color: #0969da;">viewer link approach</a> instead.
       </div>
       <p style="margin-bottom: 12px;">Copy and paste this HTML into your README.md:</p>
       <div class="code-block"><code>${htmlSnippet.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></div>
@@ -268,27 +281,52 @@ ${mapAreas}
     <div class="section">
       <h2>Alternative: Link to Viewer Page</h2>
       <p style="margin-bottom: 12px; color: #57606a;">If the HTML image map doesn't work in GitHub, use this markdown instead:</p>
-      <div class="code-block"><code>[![Roadmap](${imageUrl})](https://roadmapper.rocketstack.co/view/${owner}/${repo}/${colorScheme})</code></div>
+      <div class="code-block"><code>[![Roadmap](${imageUrl})](${baseUrl}/view/${owner}/${repo}/${bgColor}/${textColor})</code></div>
     </div>
   </div>
 
   <script>
-    // Theme management
-    const savedTheme = localStorage.getItem('theme') || 'light';
-    document.documentElement.setAttribute('data-theme', savedTheme);
-    updateThemeIcon(savedTheme);
+    // Color presets for cycling (with page theme mapping)
+    const COLOR_PRESETS = [
+      { name: 'Light', bg: 'ffffff', text: '24292f', theme: 'light' },
+      { name: 'Dark', bg: '0d1117', text: 'e6edf3', theme: 'dark' },
+      { name: 'GitHub', bg: 'f6f8fa', text: '24292f', theme: 'light' },
+      { name: 'Navy', bg: '001f3f', text: 'ffffff', theme: 'dark' },
+      { name: 'Forest', bg: '2c5f2d', text: 'ffffff', theme: 'dark' }
+    ];
+
+    // Determine current preset index based on URL colors
+    const currentBg = '${bgColor}';
+    const currentText = '${textColor}';
+    let currentPresetIndex = COLOR_PRESETS.findIndex(p => p.bg === currentBg && p.text === currentText);
+    if (currentPresetIndex === -1) currentPresetIndex = 0;
+
+    // Set page theme based on current preset
+    const currentPreset = COLOR_PRESETS[currentPresetIndex];
+    document.documentElement.setAttribute('data-theme', currentPreset.theme);
+    localStorage.setItem('theme', currentPreset.theme);
+
+    updatePresetButton();
 
     function toggleTheme() {
-      const currentTheme = document.documentElement.getAttribute('data-theme');
-      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-      document.documentElement.setAttribute('data-theme', newTheme);
-      localStorage.setItem('theme', newTheme);
-      updateThemeIcon(newTheme);
+      currentPresetIndex = (currentPresetIndex + 1) % COLOR_PRESETS.length;
+      const preset = COLOR_PRESETS[currentPresetIndex];
+
+      // Save theme preference
+      localStorage.setItem('theme', preset.theme);
+
+      // Update URL and reload
+      // Path structure: ['', 'html', 'owner', 'repo', 'bgColor', 'textColor']
+      const path = window.location.pathname.split('/');
+      path[4] = preset.bg;   // bgColor is at index 4
+      path[5] = preset.text;  // textColor is at index 5
+      window.location.pathname = path.join('/');
     }
 
-    function updateThemeIcon(theme) {
+    function updatePresetButton() {
+      const preset = COLOR_PRESETS[currentPresetIndex];
       const icon = document.querySelector('.theme-icon');
-      icon.textContent = theme === 'dark' ? '☀️' : '🌙';
+      icon.textContent = preset.name;
     }
 
     function copyCode() {

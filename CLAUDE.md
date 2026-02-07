@@ -18,7 +18,10 @@ The project supports two deployment modes:
 
 Shared by both deployment modes:
 - `fetchIssues(owner, repo)`: Fetches GitHub issues via the GitHub API
-- `generateRoadmapSVG(issues, colorScheme)`: Generates SVG content based on issue labels
+- `generateRoadmapSVG(issues, bgColor, textColor)`: Generates SVG content with custom colors
+- `validateHexColor(color)`: Validates hex color codes (3 or 6 digits)
+- `normalizeHex(hex)`: Converts 3-digit hex to 6-digit format
+- `hexToRgba(hex, alpha)`: Converts hex colors to rgba with transparency
 
 **Label Color Extraction**: The service automatically extracts the actual color from GitHub labels and applies them as accent borders on roadmap cards. Each issue's label color is stored and used in the SVG generation.
 
@@ -31,13 +34,27 @@ The roadmap automatically categorizes issues into columns based on labels:
 
 Issues are sorted by issue number and rendered in their respective columns.
 
-### Color Schemes
+### Custom Color System
 
-The service supports two color schemes via URL parameter:
-- `dark` (default): White background with dark text
-- `light`: Light background theme
+The service supports fully customizable colors via two URL parameters:
+- `bgColor`: Background color as hex (without #) - used for SVG background and card backgrounds
+- `textColor`: Text color as hex (without #) - used for headers, text, and shadows
 
-**Note**: Both the SVG roadmaps and the web pages (landing, viewer, embed, html) support light/dark mode with theme persistence via localStorage.
+**Color Mapping:**
+- Background: Uses `bgColor` directly
+- Card background: Uses `bgColor`
+- Header text: Uses `textColor`
+- Subtitle text: Uses `textColor` with 0.7 opacity
+- Card text: Uses `textColor`
+- Shadows: Uses `textColor` with 0.08-0.12 opacity
+- Label borders: Uses GitHub label colors (unchanged)
+
+**Validation:**
+- Supports both 3-digit and 6-digit hex codes
+- Invalid colors fall back to `ffffff` (white) for background and `24292f` (dark gray) for text
+- The # symbol should be omitted from URLs
+
+**Note**: The web pages (landing, viewer, embed, html) have independent light/dark theme toggles for the HTML page styling. The viewer and html pages also have preset cycling buttons that allow users to switch between predefined color combinations.
 
 ## Development Commands
 
@@ -53,7 +70,8 @@ The server runs on port 5002 by default (configurable via PORT environment varia
 All endpoints share the same URL parameters:
 - `owner`: GitHub repository owner/organization
 - `repo`: GitHub repository name
-- `colorScheme`: Optional, either `dark` or `light` (defaults to `dark`)
+- `bgColor`: Background color as hex without # (e.g., `ffffff`, `f6f8fa`)
+- `textColor`: Text color as hex without # (e.g., `24292f`, `e6edf3`)
 
 ### Main Endpoints
 
@@ -71,51 +89,56 @@ The main landing page with:
 
 #### 2. Roadmap SVG Generator (`api/roadmap.js`)
 ```
-GET /:owner/:repo/:colorScheme?
+GET /:owner/:repo/:bgColor/:textColor
 ```
 Returns the SVG roadmap image. This is the core endpoint that generates the visual roadmap.
 
-Example: `https://roadmapper.rocketstack.co/facebook/react/dark`
+Example: `https://roadmapper.rocketstack.co/facebook/react/ffffff/24292f`
 
 #### 3. Interactive Viewer (`api/view.js`)
 ```
-GET /view/:owner/:repo/:colorScheme?
+GET /view/:owner/:repo/:bgColor/:textColor
 ```
-A full HTML page that embeds the SVG roadmap with clickable links. Used as a workaround for GitHub's markdown restrictions (GitHub strips interactive elements from embedded SVGs).
+A full HTML page that embeds the SVG roadmap with clickable links. Used as a workaround for GitHub's markdown restrictions (GitHub strips interactive elements from embedded SVGs). Includes a preset cycling button.
 
-Example: `https://roadmapper.rocketstack.co/view/facebook/react/dark`
+Example: `https://roadmapper.rocketstack.co/view/facebook/react/ffffff/24292f`
 
 #### 4. Embed Page (`api/embed.js`)
 ```
-GET /embed/:owner/:repo/:colorScheme?
+GET /embed/:owner/:repo/:bgColor/:textColor
 ```
 An iframe-embeddable page with HTML image maps for clickable roadmap cards. Designed for embedding on websites and documentation sites.
 
-Example: `https://roadmapper.rocketstack.co/embed/facebook/react/dark`
+Example: `https://roadmapper.rocketstack.co/embed/facebook/react/ffffff/24292f`
 
 #### 5. HTML Code Generator (`api/html.js`)
 ```
-GET /html/:owner/:repo/:colorScheme?
+GET /html/:owner/:repo/:bgColor/:textColor
 ```
 A utility page that generates and displays HTML code with image maps for direct embedding. Shows:
 - Preview of the clickable roadmap
 - Copy-paste HTML code
 - Alternative markdown for GitHub
-- Light/dark mode theme toggle
+- Preset cycling button
 
-Example: `https://roadmapper.rocketstack.co/html/facebook/react/dark`
+Example: `https://roadmapper.rocketstack.co/html/facebook/react/ffffff/24292f`
 
 ### Local Development URLs
 
 When running locally with `npm run run`, the Express server runs on port 5002:
 - Landing page: `http://localhost:5002/`
-- Roadmap: `http://localhost:5002/:owner/:repo/:colorScheme?`
-- All other endpoints follow the same pattern as production
+- Roadmap: `http://localhost:5002/:owner/:repo/:bgColor/:textColor`
+- View: `http://localhost:5002/view/:owner/:repo/:bgColor/:textColor`
+- Embed: `http://localhost:5002/embed/:owner/:repo/:bgColor/:textColor`
+- HTML: `http://localhost:5002/html/:owner/:repo/:bgColor/:textColor`
+
+Example: `http://localhost:5002/rocketstack-matt/roadmapper/ffffff/24292f`
 
 ## Dependencies
 
 - `express` (^4.22.1): HTTP server framework for local development
 - `axios` (^1.13.4): HTTP client for GitHub API requests
+- `dotenv` (latest): Environment variable management for local development
 
 ## Important Files
 
@@ -134,13 +157,21 @@ When running locally with `npm run run`, the Express server runs on port 5002:
 
 ## Development Notes
 
-### GitHub API Rate Limits
+### GitHub API Authentication & Rate Limits
 
-The service uses the public GitHub API without authentication:
+The service supports optional GitHub authentication via environment variable:
+
 - **Unauthenticated**: 60 requests per hour per IP
-- **Authenticated**: 5,000 requests per hour (not currently implemented)
+- **Authenticated** (with `GITHUB_TOKEN`): 5,000 requests per hour
 
-For high-traffic scenarios, consider implementing caching or GitHub token authentication.
+**Authentication Setup:**
+
+- Local: Add `GITHUB_TOKEN=your_token` to `.env` file
+- Production (Vercel): Add `GITHUB_TOKEN` environment variable in Vercel settings
+- Token scope required: `public_repo` (read access to public repositories)
+- The `fetchIssues()` function in `roadmap.js` automatically uses the token if available
+
+The token is server-side only and never exposed to users. All users share the same rate limit pool (5,000/hour when authenticated).
 
 ### SVG Generation
 
@@ -154,19 +185,64 @@ The SVG is generated server-side and includes:
 ### URL Pattern Matching
 
 Each endpoint uses regex to extract URL parameters. The patterns consistently use:
+
 ```javascript
-const match = url.match(/^\/endpoint\/([^/]+)\/([^/]+)\/?([^/]*)/);
+const match = url.match(/^\/endpoint\/([^/]+)\/([^/]+)\/([^/]+)\/([^/]+)\/?/);
 ```
-Where capture groups are: [1] = owner, [2] = repo, [3] = colorScheme (optional)
+
+Where capture groups are: [1] = owner, [2] = repo, [3] = bgColor, [4] = textColor
+
+**Fallback Routes:**
+
+All endpoints support fallback routes that redirect to default colors when color parameters are omitted:
+
+- `/:owner/:repo` → redirects to `/:owner/:repo/ffffff/24292f`
+- `/view/:owner/:repo` → redirects to `/view/:owner/:repo/ffffff/24292f`
+- `/embed/:owner/:repo` → redirects to `/embed/:owner/:repo/ffffff/24292f`
+- `/html/:owner/:repo` → redirects to `/html/:owner/:repo/ffffff/24292f`
+
+This provides backwards compatibility and a better user experience.
+
+**Environment Detection:**
+
+The `view.js`, `embed.js`, and `html.js` endpoints automatically detect the environment:
+
+```javascript
+const host = req.headers.host || 'roadmapper.rocketstack.co';
+const protocol = host.includes('localhost') ? 'http' : 'https';
+const baseUrl = `${protocol}://${host}`;
+```
+
+This ensures that locally running servers use `http://localhost:5002` URLs while production uses `https://roadmapper.rocketstack.co`.
 
 ### Theme Implementation
 
-Theme switching is implemented consistently across all pages:
+Theme switching for the HTML pages is implemented consistently:
 1. CSS custom properties for colors
 2. `[data-theme="dark"]` selector for dark mode overrides
-3. JavaScript functions: `toggleTheme()`, `updateThemeIcon()`
+3. JavaScript functions: `toggleTheme()`, `updateThemeIcon()` or `updatePresetButton()`
 4. localStorage persistence with key `'theme'`
 5. Default theme: `'light'`
+
+**Preset Cycling (view.js, html.js):**
+
+These pages include a preset cycling feature that switches between predefined color combinations. Each preset controls BOTH the roadmap SVG colors AND the page wrapper theme:
+
+| Preset | Roadmap Colors  | Page Theme |
+| ------ | --------------- | ---------- |
+| Light  | `ffffff/24292f` | `light`    |
+| Dark   | `0d1117/e6edf3` | `dark`     |
+| GitHub | `f6f8fa/24292f` | `light`    |
+| Navy   | `001f3f/ffffff` | `dark`     |
+| Forest | `2c5f2d/ffffff` | `dark`     |
+
+The preset button:
+
+- Cycles through all 5 color combinations
+- Updates the URL with new `bgColor` and `textColor` parameters
+- Sets the page theme (`data-theme` attribute) to match the colors
+- Saves the theme preference to localStorage
+- Reloads the page with the new colors
 
 ## License
 
@@ -213,17 +289,18 @@ All web pages include a theme toggle button that:
 Users have three ways to embed roadmaps:
 
 1. **GitHub README (Link to Viewer)**
-   - Links to `/view/:owner/:repo/:colorScheme`
+   - Links to `/view/:owner/:repo/:bgColor/:textColor`
    - Necessary because GitHub strips interactive elements from embedded images
-   - Markdown format: `[![Roadmap](URL)](viewer-URL)`
+   - Markdown format: `[![Roadmap](https://roadmapper.rocketstack.co/owner/repo/ffffff/24292f)](https://roadmapper.rocketstack.co/view/owner/repo/ffffff/24292f)`
 
 2. **Website/Documentation (iframe)**
-   - Embeds `/embed/:owner/:repo/:colorScheme` via iframe
+   - Embeds `/embed/:owner/:repo/:bgColor/:textColor` via iframe
    - Provides directly clickable cards
    - Works on any site that supports iframes
+   - Example: `<iframe src="https://roadmapper.rocketstack.co/embed/owner/repo/ffffff/24292f" width="100%" height="600"></iframe>`
 
 3. **HTML Image Maps**
-   - Generate via `/html/:owner/:repo/:colorScheme`
+   - Generate via `/html/:owner/:repo/:bgColor/:textColor`
    - Provides copy-paste HTML with clickable regions
    - Advanced option for direct embedding
 
@@ -247,11 +324,12 @@ Builds multiple serverless functions:
 
 The routing is simplified - users don't need to include `/api/` in URLs:
 - `/` → `api/index.js`
-- `/:owner/:repo/:colorScheme?` → `api/roadmap.js`
-- `/view/:owner/:repo/:colorScheme?` → `api/view.js`
-- `/embed/:owner/:repo/:colorScheme?` → `api/embed.js`
-- `/html/:owner/:repo/:colorScheme?` → `api/html.js`
+- `/:owner/:repo/:bgColor/:textColor` → `api/roadmap.js`
+- `/view/:owner/:repo/:bgColor/:textColor` → `api/view.js`
+- `/embed/:owner/:repo/:bgColor/:textColor` → `api/embed.js`
+- `/html/:owner/:repo/:bgColor/:textColor` → `api/html.js`
 - `/logo.svg` → `public/logo.svg`
+- `/rocketstack-matt.png` → `public/rocketstack-matt.png`
 
 ### Custom Domain
 

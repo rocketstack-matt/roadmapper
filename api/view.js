@@ -1,17 +1,30 @@
 module.exports = async (req, res) => {
   // Extract the path from the URL
   const url = req.url;
-  const match = url.match(/\/view\/([^/]+)\/([^/]+)\/?([^/]*)/);
+  let match = url.match(/\/view\/([^/]+)\/([^/]+)\/([^/]+)\/([^/]+)\/?/);
 
+  // If no match, check for 2-parameter format and redirect to defaults
   if (!match) {
-    return res.status(400).send('Invalid URL format');
+    const fallbackMatch = url.match(/\/view\/([^/]+)\/([^/]+)\/?$/);
+    if (fallbackMatch) {
+      const owner = fallbackMatch[1];
+      const repo = fallbackMatch[2];
+      return res.redirect(301, `/view/${owner}/${repo}/ffffff/24292f`);
+    }
+    return res.status(400).send('Invalid URL format. Expected: /view/:owner/:repo/:bgColor/:textColor');
   }
 
   const owner = match[1];
   const repo = match[2];
-  const colorScheme = match[3] || 'dark';
+  const bgColor = match[3];
+  const textColor = match[4];
 
-  const svgUrl = `https://roadmapper.rocketstack.co/${owner}/${repo}/${colorScheme}`;
+  // Detect environment: use localhost for local development, production URL otherwise
+  const host = req.headers.host || 'roadmapper.rocketstack.co';
+  const protocol = host.includes('localhost') ? 'http' : 'https';
+  const baseUrl = `${protocol}://${host}`;
+
+  const svgUrl = `${baseUrl}/${owner}/${repo}/${bgColor}/${textColor}`;
 
   const html = `
 <!DOCTYPE html>
@@ -182,22 +195,47 @@ module.exports = async (req, res) => {
   </div>
 
   <script>
-    // Theme management
-    const savedTheme = localStorage.getItem('theme') || 'light';
-    document.documentElement.setAttribute('data-theme', savedTheme);
-    updateThemeIcon(savedTheme);
+    // Color presets for cycling (with page theme mapping)
+    const COLOR_PRESETS = [
+      { name: 'Light', bg: 'ffffff', text: '24292f', theme: 'light' },
+      { name: 'Dark', bg: '0d1117', text: 'e6edf3', theme: 'dark' },
+      { name: 'GitHub', bg: 'f6f8fa', text: '24292f', theme: 'light' },
+      { name: 'Navy', bg: '001f3f', text: 'ffffff', theme: 'dark' },
+      { name: 'Forest', bg: '2c5f2d', text: 'ffffff', theme: 'dark' }
+    ];
+
+    // Determine current preset index based on URL colors
+    const currentBg = '${bgColor}';
+    const currentText = '${textColor}';
+    let currentPresetIndex = COLOR_PRESETS.findIndex(p => p.bg === currentBg && p.text === currentText);
+    if (currentPresetIndex === -1) currentPresetIndex = 0;
+
+    // Set page theme based on current preset
+    const currentPreset = COLOR_PRESETS[currentPresetIndex];
+    document.documentElement.setAttribute('data-theme', currentPreset.theme);
+    localStorage.setItem('theme', currentPreset.theme);
+
+    updatePresetButton();
 
     function toggleTheme() {
-      const currentTheme = document.documentElement.getAttribute('data-theme');
-      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-      document.documentElement.setAttribute('data-theme', newTheme);
-      localStorage.setItem('theme', newTheme);
-      updateThemeIcon(newTheme);
+      currentPresetIndex = (currentPresetIndex + 1) % COLOR_PRESETS.length;
+      const preset = COLOR_PRESETS[currentPresetIndex];
+
+      // Save theme preference
+      localStorage.setItem('theme', preset.theme);
+
+      // Update URL and reload
+      // Path structure: ['', 'view', 'owner', 'repo', 'bgColor', 'textColor']
+      const path = window.location.pathname.split('/');
+      path[4] = preset.bg;   // bgColor is at index 4
+      path[5] = preset.text;  // textColor is at index 5
+      window.location.pathname = path.join('/');
     }
 
-    function updateThemeIcon(theme) {
+    function updatePresetButton() {
+      const preset = COLOR_PRESETS[currentPresetIndex];
       const icon = document.querySelector('.theme-icon');
-      icon.textContent = theme === 'dark' ? '☀️' : '🌙';
+      icon.textContent = preset.name;
     }
   </script>
 </body>
