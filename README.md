@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./public/logo.svg" alt="Roadmapper Logo" width="600">
+  <img src="https://roadmapper.rocketstack.co/logo.svg" alt="Roadmapper Logo" width="600">
 </p>
 
 <p align="center">
