@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "run": "node server.js"
+    "run": "node server.js",
+    "test": "jest --verbose"
   },
   "keywords": [],
   "author": "",
@@ -13,5 +14,8 @@
     "axios": "^1.13.4",
     "dotenv": "^17.2.4",
     "express": "^4.22.1"
+  },
+  "devDependencies": {
+    "jest": "^30.2.0"
   }
 }

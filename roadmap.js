@@ -138,5 +138,8 @@ const fetchIssues = async (owner, repo) => {
 
 module.exports = {
     generateRoadmapSVG,
-    fetchIssues
+    fetchIssues,
+    validateHexColor,
+    normalizeHex,
+    hexToRgba
 };

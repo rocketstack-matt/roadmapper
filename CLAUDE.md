@@ -65,6 +65,34 @@ npm run run
 
 The server runs on port 5002 by default (configurable via PORT environment variable).
 
+Run the test suite:
+```bash
+npm test
+```
+
+**Important: Always run `npm test` before committing any changes.** All tests must pass before code is committed.
+
+## Testing
+
+The project uses **Jest** for testing. Tests live in the `tests/` directory.
+
+### Test Files
+
+- `tests/helpers.js`: Shared mock data and test utilities (mock req/res, mock issues)
+- `tests/roadmap.test.js`: Core logic tests (`validateHexColor`, `normalizeHex`, `hexToRgba`, `generateRoadmapSVG`, `fetchIssues`)
+- `tests/api-roadmap.test.js`: SVG generator endpoint tests (URL parsing, redirects, error handling)
+- `tests/api-view.test.js`: Interactive viewer endpoint tests (HTML output, environment detection, presets)
+- `tests/api-embed.test.js`: Embed endpoint tests (image map generation, coordinate calculation)
+- `tests/api-html.test.js`: HTML code generator endpoint tests (code generation, copy functionality, HTML escaping)
+- `tests/api-index.test.js`: Landing page endpoint tests (sections, features, theme toggle)
+
+### Writing Tests
+
+- Mock `axios` for any tests involving `fetchIssues` to avoid real API calls
+- Use `createMockReq(url, headers)` and `createMockRes()` from `tests/helpers.js` for endpoint tests
+- Use `createMockIssue(number, title, labelName, labelColor)` for creating test issue data
+- API endpoint handlers are tested directly with mock req/res objects (no HTTP server needed)
+
 ## API Endpoints
 
 All endpoints share the same URL parameters:
@@ -140,6 +168,10 @@ Example: `http://localhost:5002/rocketstack-matt/roadmapper/ffffff/24292f`
 - `axios` (^1.13.4): HTTP client for GitHub API requests
 - `dotenv` (latest): Environment variable management for local development
 
+### Dev Dependencies
+
+- `jest` (^30.2.0): Testing framework
+
 ## Important Files
 
 - `roadmap.js`: Core SVG generation logic shared by all endpoints
@@ -152,6 +184,7 @@ Example: `http://localhost:5002/rocketstack-matt/roadmapper/ffffff/24292f`
 - `vercel.json`: Serverless deployment configuration
 - `public/logo.svg`: Roadmapper logo
 - `public/rocketstack-matt.png`: Avatar image
+- `tests/`: Test suite directory (Jest)
 - `README.md`: User-facing documentation
 - `LICENSE`: Apache 2.0 license
 
