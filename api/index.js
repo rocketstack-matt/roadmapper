@@ -450,11 +450,23 @@ module.exports = async (req, res) => {
   <section class="section" id="get-started">
     <div class="container">
       <h2 class="section-title">Get Started</h2>
-      <p class="section-description">Add this to your README.md:</p>
+
+      <h3 style="margin-top: 24px; margin-bottom: 16px; font-size: 20px;">For GitHub READMEs</h3>
+      <p class="section-description">Link to the viewer page for clickable cards (GitHub strips interactive elements from embedded images):</p>
 
       <div class="code-block"><code>[![Roadmap](https://roadmapper.rocketstack.co/your-username/your-repo/dark)](https://roadmapper.rocketstack.co/view/your-username/your-repo/dark)
 
 > Click the roadmap to view the interactive version with clickable cards.</code></div>
+
+      <h3 style="margin-top: 48px; margin-bottom: 16px; font-size: 20px;">For Websites & Documentation</h3>
+      <p class="section-description">Embed directly with clickable cards using an iframe:</p>
+
+      <div class="code-block"><code>&lt;iframe src="https://roadmapper.rocketstack.co/embed/your-username/your-repo/dark"
+        width="100%" height="520" frameborder="0"&gt;&lt;/iframe&gt;</code></div>
+
+      <p class="section-description" style="margin-top: 24px;">Or use HTML image maps for direct embedding:</p>
+
+      <div class="code-block"><code>&lt;!-- Visit https://roadmapper.rocketstack.co/html/your-username/your-repo/dark to generate --&gt;</code></div>
 
       <h3 style="margin-top: 48px; margin-bottom: 24px; text-align: center; font-size: 24px;">URL Format</h3>
       <div class="code-block"><code>https://roadmapper.rocketstack.co/{owner}/{repo}/{colorScheme}</code></div>
