@@ -14,11 +14,9 @@ Simply label your GitHub issues with `Roadmap: Now`, `Roadmap: Later`, or `Roadm
 
 ## Live Example
 
-Here's what this project's roadmap looks like (click on any card to view the issue):
+Here's what this project's roadmap looks like - **[click here to view the interactive version](https://roadmapper-theta.vercel.app/view/rocketstack-matt/roadmapper/dark)** where you can click on cards to view issues:
 
-<iframe src="https://roadmapper-theta.vercel.app/embed/rocketstack-matt/roadmapper/dark" width="100%" height="520" frameborder="0" style="border: none;"></iframe>
-
-_Can't see the roadmap above? [View it here](https://roadmapper-theta.vercel.app/view/rocketstack-matt/roadmapper/dark)_
+[![Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/rocketstack-matt/roadmapper/dark)](https://roadmapper-theta.vercel.app/view/rocketstack-matt/roadmapper/dark)
 
 ## How It Works
 
@@ -64,20 +62,10 @@ https://roadmapper-theta.vercel.app/api/roadmap/facebook/react/light
 
 ### In Your README
 
-**Option 1: Embedded with Clickable Cards (Recommended):**
+**Recommended: Link to Interactive Viewer**
 
-Embed the roadmap with clickable cards using an iframe:
-```html
-## Roadmap
+This shows a preview image that links to a page where each card is clickable:
 
-<iframe src="https://roadmapper-theta.vercel.app/embed/your-username/your-repo/dark" width="100%" height="520" frameborder="0"></iframe>
-
-[View Full Roadmap →](https://roadmapper-theta.vercel.app/view/your-username/your-repo/dark)
-```
-
-**Option 2: Link to Interactive Viewer:**
-
-Link to the interactive viewer page:
 ```markdown
 ## Roadmap
 
@@ -86,16 +74,25 @@ Link to the interactive viewer page:
 [View Interactive Roadmap →](https://roadmapper-theta.vercel.app/view/your-username/your-repo/dark)
 ```
 
-**Option 3: Static Image:**
+**Alternative: Static Image Only**
 
-If you just want a static roadmap image:
+If you just want a static roadmap image without clickable links:
+
 ```markdown
-## Roadmap
-
 ![Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/your-username/your-repo/dark)
 ```
 
-> **Note:** GitHub may not render iframes in markdown for security reasons. If the iframe doesn't work, use Option 2 to link to the interactive viewer page.
+**For Documentation Sites (Non-GitHub)**
+
+If you're embedding in a website or documentation site that supports HTML, you can use the clickable embed:
+
+```html
+<iframe src="https://roadmapper-theta.vercel.app/embed/your-username/your-repo/dark" width="100%" height="520" frameborder="0"></iframe>
+```
+
+Or [generate HTML code](https://roadmapper-theta.vercel.app/html/your-username/your-repo/dark) with image maps for more direct embedding.
+
+> **GitHub Limitation:** GitHub's markdown renderer strips iframes and may not support HTML image maps for security reasons. For GitHub READMEs, use the recommended link approach above.
 
 ## Color Schemes
 
