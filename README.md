@@ -14,9 +14,11 @@ Simply label your GitHub issues with `Roadmap: Now`, `Roadmap: Later`, or `Roadm
 
 ## Live Example
 
-Here's what this project's roadmap looks like - **[click here to view the interactive version](https://roadmapper-theta.vercel.app/view/rocketstack-matt/roadmapper/dark)** where you can click on cards to view issues:
+Here's what this project's roadmap looks like:
 
 [![Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/rocketstack-matt/roadmapper/dark)](https://roadmapper-theta.vercel.app/view/rocketstack-matt/roadmapper/dark)
+
+> **💡 Click the roadmap image above** to open the interactive viewer where each card is clickable and links directly to its GitHub issue. Due to GitHub's security restrictions, roadmap cards cannot be made clickable when embedded directly in markdown.
 
 ## How It Works
 
@@ -62,7 +64,7 @@ https://roadmapper-theta.vercel.app/api/roadmap/facebook/react/light
 
 ### In Your README
 
-**Recommended: Link to Interactive Viewer**
+**Recommended: Interactive Roadmap Link**
 
 This shows a preview image that links to a page where each card is clickable:
 
@@ -71,7 +73,7 @@ This shows a preview image that links to a page where each card is clickable:
 
 [![Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/your-username/your-repo/dark)](https://roadmapper-theta.vercel.app/view/your-username/your-repo/dark)
 
-[View Interactive Roadmap →](https://roadmapper-theta.vercel.app/view/your-username/your-repo/dark)
+> Click the roadmap to view the interactive version with clickable cards.
 ```
 
 **Alternative: Static Image Only**
