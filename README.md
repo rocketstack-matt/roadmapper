@@ -1,6 +1,8 @@
 <p align="center">
-  <img src="https://roadmapper.rocketstack.co/logo.svg" alt="Roadmapper Logo" width="600">
+  <img src="https://roadmapper.rocketstack.co/logo.svg" alt="Roadmapper Logo" width="200">
 </p>
+
+<h1 align="center">Roadmapper</h1>
 
 <p align="center">
   <strong>Transform your GitHub issues into beautiful, visual roadmaps</strong>
