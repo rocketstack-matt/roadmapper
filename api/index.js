@@ -265,6 +265,107 @@ module.exports = async (req, res) => {
       white-space: pre;
     }
 
+    /* URL Format Box */
+    .url-format-box {
+      background: linear-gradient(135deg, rgba(30, 136, 229, 0.05) 0%, rgba(38, 166, 154, 0.05) 100%);
+      border: 2px solid var(--accent-blue);
+      border-radius: 12px;
+      padding: 32px;
+      margin: 32px 0;
+      text-align: center;
+    }
+
+    .url-format-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 12px;
+    }
+
+    .url-format-description {
+      color: var(--text-secondary);
+      font-size: 16px;
+      line-height: 1.6;
+      margin-bottom: 24px;
+      max-width: 700px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .url-format-code {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 20px;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 16px;
+      margin: 24px 0;
+      overflow-x: auto;
+    }
+
+    .url-format-code code {
+      color: var(--text-primary);
+    }
+
+    .url-param {
+      color: var(--accent-blue);
+      font-weight: 600;
+    }
+
+    .url-param-optional {
+      color: var(--accent-teal);
+      font-weight: 600;
+    }
+
+    .url-params {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin: 24px 0;
+      text-align: left;
+    }
+
+    .url-param-item {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .url-param-item strong {
+      display: block;
+      color: var(--accent-blue);
+      font-size: 15px;
+      margin-bottom: 6px;
+      font-family: 'Monaco', 'Menlo', monospace;
+    }
+
+    .url-param-item span {
+      color: var(--text-secondary);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .url-example {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 16px;
+      font-size: 14px;
+      margin-top: 16px;
+      text-align: left;
+    }
+
+    .url-example strong {
+      color: var(--text-primary);
+      margin-right: 8px;
+    }
+
+    .url-example code {
+      color: var(--accent-green);
+      font-family: 'Monaco', 'Menlo', monospace;
+    }
+
     /* Embed Tabs */
     .embed-tabs {
       display: flex;
@@ -501,6 +602,38 @@ module.exports = async (req, res) => {
   <section class="section" id="get-started">
     <div class="container">
       <h2 class="section-title">Get Started</h2>
+
+      <!-- URL Format Box -->
+      <div class="url-format-box">
+        <h3 class="url-format-title">📍 Your Roadmap URL</h3>
+        <p class="url-format-description">Every roadmap has a unique URL based on your GitHub repository. This URL generates a live SVG that updates automatically when your issues change.</p>
+
+        <div class="url-format-code">
+          <code>https://roadmapper.rocketstack.co/<span class="url-param">{owner}</span>/<span class="url-param">{repo}</span>/<span class="url-param-optional">{colorScheme}</span></code>
+        </div>
+
+        <div class="url-params">
+          <div class="url-param-item">
+            <strong>owner</strong>
+            <span>Your GitHub username or organization</span>
+          </div>
+          <div class="url-param-item">
+            <strong>repo</strong>
+            <span>Your repository name</span>
+          </div>
+          <div class="url-param-item">
+            <strong>colorScheme</strong>
+            <span>"dark" or "light" (optional, defaults to "dark")</span>
+          </div>
+        </div>
+
+        <div class="url-example">
+          <strong>Example:</strong> <code>https://roadmapper.rocketstack.co/rocketstack-matt/roadmapper/dark</code>
+        </div>
+      </div>
+
+      <!-- Embedding Options -->
+      <h3 style="margin-top: 48px; margin-bottom: 16px; text-align: center; font-size: 22px; color: var(--text-primary);">How to Embed Your Roadmap</h3>
       <p class="section-description">Choose your embedding method:</p>
 
       <div class="embed-tabs">
@@ -529,15 +662,6 @@ module.exports = async (req, res) => {
 https://roadmapper.rocketstack.co/html/your-username/your-repo/dark</code></div>
         </div>
       </div>
-
-      <h3 style="margin-top: 48px; margin-bottom: 24px; text-align: center; font-size: 24px;">URL Format</h3>
-      <div class="code-block"><code>https://roadmapper.rocketstack.co/{owner}/{repo}/{colorScheme}</code></div>
-
-      <p style="text-align: center; color: var(--text-secondary); margin-top: 16px;">
-        <strong>owner</strong>: GitHub username or organization<br>
-        <strong>repo</strong>: Repository name<br>
-        <strong>colorScheme</strong>: "dark" or "light" (optional, defaults to dark)
-      </p>
     </div>
   </section>
 
