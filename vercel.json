@@ -2,11 +2,19 @@
   "version": 2,
   "builds": [
     {
+      "src": "api/index.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "api/roadmap.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
+    {
+      "src": "/",
+      "dest": "/api/index.js"
+    },
     {
       "src": "/api/roadmap/(?<owner>[^/]+)/(?<repo>[^/]+)/(?<colorScheme>[^/]+)?",
       "dest": "/api/roadmap.js"
