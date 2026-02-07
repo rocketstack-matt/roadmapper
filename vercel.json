@@ -32,6 +32,10 @@
       "dest": "/public/logo.svg"
     },
     {
+      "src": "/rocketstack-matt.png",
+      "dest": "/public/rocketstack-matt.png"
+    },
+    {
       "src": "/",
       "dest": "/api/index.js"
     },
