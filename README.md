@@ -29,7 +29,7 @@ Roadmapper transforms your GitHub issues into a clean, three-column visual roadm
 - Status pages
 - Team dashboards
 
-Simply label your GitHub issues with `Roadmap: Now`, `Roadmap: Later`, or `Roadmap: Future`, and Roadmapper does the rest.
+Simply add one of three labels to your GitHub issues—**`Roadmap: Now`**, **`Roadmap: Later`**, or **`Roadmap: Future`**—and Roadmapper does the rest.
 
 ## Live Example
 
@@ -42,9 +42,9 @@ Here's what this project's roadmap looks like:
 ## How It Works
 
 1. **Label your issues**: Add one of these labels to your GitHub issues:
-   - `Roadmap: Now` - Top priority items you're working on right now
-   - `Roadmap: Later` - Next priority items planned for soon
-   - `Roadmap: Future` - Longer-term items under consideration
+   - **`Roadmap: Now`** - Top priority items you're working on right now
+   - **`Roadmap: Later`** - Next priority items planned for soon
+   - **`Roadmap: Future`** - Longer-term items under consideration
 
 2. **Generate your roadmap**: Use the URL format:
    ```
@@ -187,13 +187,14 @@ No environment variables or configuration needed!
 ## How Labels Work
 
 Roadmapper looks for these exact label names on your GitHub issues:
-- **`Roadmap: Now`**: Items appear in the green "Now" column
-- **`Roadmap: Later`**: Items appear in the yellow "Later" column
-- **`Roadmap: Future`**: Items appear in the gray "Future" column
+
+- **`Roadmap: Now`** - Items appear in the "Now" column
+- **`Roadmap: Later`** - Items appear in the "Later" column
+- **`Roadmap: Future`** - Items appear in the "Future" column
 
 ### Label Colors
 
-Roadmapper automatically uses the actual colors from your GitHub labels on the roadmap cards. Each card displays a colored accent border at the top that matches the color you've set for that label in your GitHub repository. This allows you to customize the appearance of your roadmap by simply changing the label colors in GitHub - no configuration needed!
+Roadmapper automatically extracts and uses the actual colors from your GitHub labels. Each roadmap card displays a colored accent border at the top that matches the color you've set for that label in your GitHub repository. This means you can customize the appearance of your roadmap by simply changing the label colors in GitHub—no configuration needed!
 
 If a label color cannot be determined, the card will use a default gray color.
 
