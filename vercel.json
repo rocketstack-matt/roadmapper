@@ -40,19 +40,35 @@
       "dest": "/api/index.js"
     },
     {
-      "src": "/html/(?<owner>[^/]+)/(?<repo>[^/]+)/(?<colorScheme>[^/]+)?",
+      "src": "/html/(?<owner>[^/]+)/(?<repo>[^/]+)/(?<bgColor>[^/]+)/(?<textColor>[^/]+)",
       "dest": "/api/html.js"
     },
     {
-      "src": "/embed/(?<owner>[^/]+)/(?<repo>[^/]+)/(?<colorScheme>[^/]+)?",
+      "src": "/html/(?<owner>[^/]+)/(?<repo>[^/]+)/?",
+      "dest": "/api/html.js"
+    },
+    {
+      "src": "/embed/(?<owner>[^/]+)/(?<repo>[^/]+)/(?<bgColor>[^/]+)/(?<textColor>[^/]+)",
       "dest": "/api/embed.js"
     },
     {
-      "src": "/view/(?<owner>[^/]+)/(?<repo>[^/]+)/(?<colorScheme>[^/]+)?",
+      "src": "/embed/(?<owner>[^/]+)/(?<repo>[^/]+)/?",
+      "dest": "/api/embed.js"
+    },
+    {
+      "src": "/view/(?<owner>[^/]+)/(?<repo>[^/]+)/(?<bgColor>[^/]+)/(?<textColor>[^/]+)",
       "dest": "/api/view.js"
     },
     {
-      "src": "/(?<owner>[^/]+)/(?<repo>[^/]+)/(?<colorScheme>[^/]+)?",
+      "src": "/view/(?<owner>[^/]+)/(?<repo>[^/]+)/?",
+      "dest": "/api/view.js"
+    },
+    {
+      "src": "/(?<owner>[^/]+)/(?<repo>[^/]+)/(?<bgColor>[^/]+)/(?<textColor>[^/]+)",
+      "dest": "/api/roadmap.js"
+    },
+    {
+      "src": "/(?<owner>[^/]+)/(?<repo>[^/]+)/?",
       "dest": "/api/roadmap.js"
     }
   ]
