@@ -1,6 +1,23 @@
-# Roadmapper
+<p align="center">
+  <img src="./public/logo.svg" alt="Roadmapper Logo" width="600">
+</p>
 
-A simple, elegant way to visualize your project roadmap using GitHub issues. Roadmapper automatically generates beautiful SVG roadmaps from your GitHub issues based on labels, making it easy to communicate your project's priorities and timeline.
+<p align="center">
+  <strong>Transform your GitHub issues into beautiful, visual roadmaps</strong>
+</p>
+
+<p align="center">
+  A simple, elegant way to visualize your project roadmap using GitHub issues. Roadmapper automatically generates beautiful SVG roadmaps from your GitHub issues based on labels, making it easy to communicate your project's priorities and timeline.
+</p>
+
+<p align="center">
+  <a href="https://roadmapper.rocketstack.co">Website</a> •
+  <a href="#live-example">Live Example</a> •
+  <a href="#how-it-works">How It Works</a> •
+  <a href="#usage">Usage</a>
+</p>
+
+---
 
 ## What is Roadmapper?
 

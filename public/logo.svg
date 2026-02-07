@@ -1,0 +1,40 @@
+<svg width="800" height="500" viewBox="0 0 800 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Blue circle -->
+  <circle cx="315" cy="195" r="45" fill="white"/>
+  <circle cx="315" cy="195" r="35" fill="white"/>
+  <path d="M 315 160 A 35 35 0 0 1 315 230 A 35 35 0 0 1 315 160" fill="none" stroke="#1E88E5" stroke-width="20"/>
+
+  <!-- Connecting line 1 -->
+  <line x1="350" y1="195" x2="450" y2="195" stroke="url(#gradient1)" stroke-width="18" stroke-linecap="round"/>
+
+  <!-- Teal circle -->
+  <circle cx="495" cy="195" r="45" fill="white"/>
+  <circle cx="495" cy="195" r="35" fill="white"/>
+  <path d="M 495 160 A 35 35 0 0 1 495 230 A 35 35 0 0 1 495 160" fill="none" stroke="#26A69A" stroke-width="20"/>
+
+  <!-- Connecting line 2 -->
+  <line x1="530" y1="195" x2="630" y2="195" stroke="url(#gradient2)" stroke-width="18" stroke-linecap="round"/>
+
+  <!-- Green circle -->
+  <circle cx="655" cy="195" r="45" fill="white"/>
+  <circle cx="655" cy="195" r="35" fill="white"/>
+  <path d="M 655 160 A 35 35 0 0 1 655 230 A 35 35 0 0 1 655 160" fill="none" stroke="#66BB6A" stroke-width="20"/>
+
+  <!-- Arrow -->
+  <path d="M 700 195 L 775 195 M 745 165 L 775 195 L 745 225" stroke="#66BB6A" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Gradients -->
+  <defs>
+    <linearGradient id="gradient1" x1="350" y1="195" x2="450" y2="195">
+      <stop offset="0%" stop-color="#1E88E5"/>
+      <stop offset="100%" stop-color="#26A69A"/>
+    </linearGradient>
+    <linearGradient id="gradient2" x1="530" y1="195" x2="630" y2="195">
+      <stop offset="0%" stop-color="#26A69A"/>
+      <stop offset="100%" stop-color="#66BB6A"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Text -->
+  <text x="400" y="380" font-family="system-ui, -apple-system, sans-serif" font-size="120" font-weight="700" text-anchor="middle" fill="currentColor">Roadmapper</text>
+</svg>
