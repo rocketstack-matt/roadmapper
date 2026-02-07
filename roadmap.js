@@ -17,22 +17,22 @@ const createColumn = (title, subtitle, items, xPosition, className, accentColor,
 
     <!-- Issues -->
     ${items.map((issue, index) => `
-      <g transform="translate(0, ${(index * 95) + 130})">
-        <!-- Card background -->
-        <rect x="15" y="0" width="350" height="75" rx="8" ry="8" style="fill: #ffffff; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.08));"></rect>
+      <a href="${issue.html_url}" target="_blank" rel="noopener noreferrer">
+        <g transform="translate(0, ${(index * 95) + 130})" class="roadmap-card" style="cursor: pointer;">
+          <!-- Card background -->
+          <rect x="15" y="0" width="350" height="75" rx="8" ry="8" style="fill: #ffffff; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.08));"></rect>
 
-        <!-- Top accent border -->
-        <rect x="15" y="0" width="350" height="4" rx="8" ry="8" style="fill: ${accentColor};"></rect>
+          <!-- Top accent border -->
+          <rect x="15" y="0" width="350" height="4" rx="8" ry="8" style="fill: ${accentColor};"></rect>
 
-        <!-- Issue content -->
-        <foreignObject x="25" y="15" width="330" height="55">
-          <body xmlns="http://www.w3.org/1999/xhtml" style="margin: 0;">
-            <a href="${issue.html_url}" target="_blank" style="text-decoration: none; display: block;">
+          <!-- Issue content -->
+          <foreignObject x="25" y="15" width="330" height="55" style="pointer-events: none;">
+            <body xmlns="http://www.w3.org/1999/xhtml" style="margin: 0;">
               <div style="font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-weight: 500; color: #24292f; line-height: 1.4; padding: 8px 10px; word-wrap: break-word; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">${issue.title}</div>
-            </a>
-          </body>
-        </foreignObject>
-      </g>
+            </body>
+          </foreignObject>
+        </g>
+      </a>
     `).join('')}
   </g>
 `;
