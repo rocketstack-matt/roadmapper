@@ -196,7 +196,7 @@ For high-traffic use cases, consider caching the SVG output or implementing GitH
 
 ## License
 
-ISC
+Apache 2.0 - See [LICENSE](LICENSE) file for details.
 
 ## Contributing
 
