@@ -1,6 +1,6 @@
 const axios = require('axios');
 
-const createColumn = (title, subtitle, items, xPosition, className, accentColor, headerColor, subheaderColor, backgroundColor) => `
+const createColumn = (title, subtitle, items, xPosition, className, headerColor, subheaderColor, backgroundColor) => `
   <g transform="translate(${xPosition}, 0)" class="${className}">
     <!-- Column background -->
     <rect x="0" y="0" width="380" height="100%" style="fill: ${backgroundColor}; opacity: 0.03;"></rect>
@@ -16,14 +16,18 @@ const createColumn = (title, subtitle, items, xPosition, className, accentColor,
     </foreignObject>
 
     <!-- Issues -->
-    ${items.map((issue, index) => `
+    ${items.map((issue, index) => {
+      // Get the label color from the issue's roadmap label
+      const labelColor = issue.labelColor ? `#${issue.labelColor}` : '#8b949e';
+
+      return `
       <a href="${issue.html_url}" target="_blank" rel="noopener noreferrer">
         <g transform="translate(0, ${(index * 95) + 130})" class="roadmap-card" style="cursor: pointer;">
           <!-- Card background -->
           <rect x="15" y="0" width="350" height="75" rx="8" ry="8" style="fill: #ffffff; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.08));"></rect>
 
           <!-- Top accent border -->
-          <rect x="15" y="0" width="350" height="4" rx="8" ry="8" style="fill: ${accentColor};"></rect>
+          <rect x="15" y="0" width="350" height="4" rx="8" ry="8" style="fill: ${labelColor};"></rect>
 
           <!-- Issue content -->
           <foreignObject x="25" y="15" width="330" height="55" style="pointer-events: none;">
@@ -33,7 +37,8 @@ const createColumn = (title, subtitle, items, xPosition, className, accentColor,
           </foreignObject>
         </g>
       </a>
-    `).join('')}
+    `;
+    }).join('')}
   </g>
 `;
 
@@ -52,10 +57,22 @@ const generateRoadmapSVG = (issues, colorScheme) => {
         backgroundColor = '#ffffff';
     }
 
+    // Filter issues and extract label colors
+    const filterAndExtractColor = (labelName) => {
+        return issues.filter(issue => {
+            const label = issue.labels.find(l => l.name === labelName);
+            if (label) {
+                issue.labelColor = label.color;
+                return true;
+            }
+            return false;
+        });
+    };
+
     const columns = {
-        now: issues.filter(issue => issue.labels.some(label => label.name === 'Roadmap: Now')),
-        later: issues.filter(issue => issue.labels.some(label => label.name === 'Roadmap: Later')),
-        future: issues.filter(issue => issue.labels.some(label => label.name === 'Roadmap: Future'))
+        now: filterAndExtractColor('Roadmap: Now'),
+        later: filterAndExtractColor('Roadmap: Later'),
+        future: filterAndExtractColor('Roadmap: Future')
     };
 
     const maxItemsCount = Math.max(columns.now.length, columns.later.length, columns.future.length);
@@ -70,9 +87,9 @@ const generateRoadmapSVG = (issues, colorScheme) => {
           }
         </style>
       </defs>
-      ${createColumn('Now', "We're working on it right now", columns.now, 0, 'now', '#2da44e', headerColor, subheaderColor, backgroundColor)}
-      ${createColumn('Later', "Next up on our roadmap", columns.later, 380, 'later', '#fb8500', headerColor, subheaderColor, backgroundColor)}
-      ${createColumn('Future', "Planned for the future", columns.future, 760, 'future', '#8b949e', headerColor, subheaderColor, backgroundColor)}
+      ${createColumn('Now', "We're working on it right now", columns.now, 0, 'now', headerColor, subheaderColor, backgroundColor)}
+      ${createColumn('Later', "Next up on our roadmap", columns.later, 380, 'later', headerColor, subheaderColor, backgroundColor)}
+      ${createColumn('Future', "Planned for the future", columns.future, 760, 'future', headerColor, subheaderColor, backgroundColor)}
     </svg>
   `;
 };
