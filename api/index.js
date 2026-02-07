@@ -309,14 +309,17 @@ module.exports = async (req, res) => {
         <h3>Light Theme</h3>
         <div class="code-block"><code>![Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/your-username/your-repo/light)</code></div>
 
-        <h3>With Clickable Links (Recommended)</h3>
-        <p>Use HTML to preserve clickable links to GitHub issues:</p>
-        <div class="code-block"><code>&lt;object data="https://roadmapper-theta.vercel.app/api/roadmap/your-username/your-repo/dark" type="image/svg+xml" width="100%"&gt;
-  &lt;img src="https://roadmapper-theta.vercel.app/api/roadmap/your-username/your-repo/dark" alt="Roadmap" /&gt;
-&lt;/object&gt;</code></div>
+        <h3>Interactive Viewer (Recommended)</h3>
+        <p>Link to the interactive viewer page where users can click on roadmap items:</p>
+        <div class="code-block"><code>[![Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/your-username/your-repo/dark)](https://roadmapper-theta.vercel.app/view/your-username/your-repo/dark)</code></div>
 
-        <h3>Simple Markdown (No Clickable Links)</h3>
+        <h3>Static Image</h3>
+        <p>If you just want to display a static roadmap image:</p>
         <div class="code-block"><code>![Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/your-username/your-repo/dark)</code></div>
+
+        <p style="margin-top: 16px; padding: 16px; background: #fff3cd; border-radius: 6px; font-size: 14px;">
+          <strong>Note:</strong> Due to GitHub's security restrictions, embedded SVGs cannot have clickable links. Use the interactive viewer link to allow users to click on roadmap items.
+        </p>
 
         <h3>Live Example</h3>
         <p>Here's what a roadmap looks like:</p>

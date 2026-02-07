@@ -14,11 +14,11 @@ Simply label your GitHub issues with `Roadmap: Now`, `Roadmap: Later`, or `Roadm
 
 ## Live Example
 
-Here's what this project's roadmap looks like (click on any item to view the issue):
+Here's what this project's roadmap looks like:
 
-<object data="https://roadmapper-theta.vercel.app/api/roadmap/rocketstack-matt/roadmapper/dark" type="image/svg+xml" width="100%">
-  <img src="https://roadmapper-theta.vercel.app/api/roadmap/rocketstack-matt/roadmapper/dark" alt="Roadmap" />
-</object>
+[![Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/rocketstack-matt/roadmapper/dark)](https://roadmapper-theta.vercel.app/view/rocketstack-matt/roadmapper/dark)
+
+**[Click here to view the interactive roadmap](https://roadmapper-theta.vercel.app/view/rocketstack-matt/roadmapper/dark)** where you can click on items to view issues.
 
 ## How It Works
 
@@ -32,11 +32,9 @@ Here's what this project's roadmap looks like (click on any item to view the iss
    https://roadmapper-theta.vercel.app/api/roadmap/{owner}/{repo}/{colorScheme}
    ```
 
-3. **Embed in your README**: Add the roadmap with clickable issue links:
-   ```html
-   <object data="https://roadmapper-theta.vercel.app/api/roadmap/owner/repo/dark" type="image/svg+xml" width="100%">
-     <img src="https://roadmapper-theta.vercel.app/api/roadmap/owner/repo/dark" alt="Roadmap" />
-   </object>
+3. **Add to your README**: Link to the interactive viewer page where users can click on items:
+   ```markdown
+   [![Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/owner/repo/dark)](https://roadmapper-theta.vercel.app/view/owner/repo/dark)
    ```
 
 ## Usage
@@ -66,27 +64,27 @@ https://roadmapper-theta.vercel.app/api/roadmap/facebook/react/light
 
 ### In Your README
 
-**With Clickable Links (Recommended):**
+**Interactive Viewer (Recommended):**
 
-Add this HTML to your README.md to make roadmap items clickable:
-```html
-## Roadmap
-
-<object data="https://roadmapper-theta.vercel.app/api/roadmap/your-username/your-repo/dark" type="image/svg+xml" width="100%">
-  <img src="https://roadmapper-theta.vercel.app/api/roadmap/your-username/your-repo/dark" alt="Project Roadmap" />
-</object>
-```
-
-**Simple Image (No Clickable Links):**
-
-If you prefer simpler markdown syntax:
+Link to the interactive viewer page where users can click on roadmap items:
 ```markdown
 ## Roadmap
 
-![Project Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/your-username/your-repo/dark)
+[![Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/your-username/your-repo/dark)](https://roadmapper-theta.vercel.app/view/your-username/your-repo/dark)
+
+[View Interactive Roadmap →](https://roadmapper-theta.vercel.app/view/your-username/your-repo/dark)
 ```
 
-> **Note:** The `<object>` tag method preserves clickable links to GitHub issues, while the simple markdown image syntax does not.
+**Static Image:**
+
+If you just want to show a static roadmap image:
+```markdown
+## Roadmap
+
+![Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/your-username/your-repo/dark)
+```
+
+> **Note:** Due to GitHub's security restrictions, embedded SVGs cannot have clickable links. Use the interactive viewer link to allow users to click on roadmap items and view the issues.
 
 ## Color Schemes
 

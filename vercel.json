@@ -8,12 +8,20 @@
     {
       "src": "api/roadmap.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "api/view.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/",
       "dest": "/api/index.js"
+    },
+    {
+      "src": "/view/(?<owner>[^/]+)/(?<repo>[^/]+)/(?<colorScheme>[^/]+)?",
+      "dest": "/api/view.js"
     },
     {
       "src": "/api/roadmap/(?<owner>[^/]+)/(?<repo>[^/]+)/(?<colorScheme>[^/]+)?",
