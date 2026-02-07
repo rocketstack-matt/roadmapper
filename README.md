@@ -14,11 +14,11 @@ Simply label your GitHub issues with `Roadmap: Now`, `Roadmap: Later`, or `Roadm
 
 ## Live Example
 
-Here's what this project's roadmap looks like:
+Here's what this project's roadmap looks like (click on any card to view the issue):
 
-[![Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/rocketstack-matt/roadmapper/dark)](https://roadmapper-theta.vercel.app/view/rocketstack-matt/roadmapper/dark)
+<iframe src="https://roadmapper-theta.vercel.app/embed/rocketstack-matt/roadmapper/dark" width="100%" height="520" frameborder="0" style="border: none;"></iframe>
 
-**[Click here to view the interactive roadmap](https://roadmapper-theta.vercel.app/view/rocketstack-matt/roadmapper/dark)** where you can click on items to view issues.
+_Can't see the roadmap above? [View it here](https://roadmapper-theta.vercel.app/view/rocketstack-matt/roadmapper/dark)_
 
 ## How It Works
 
@@ -64,9 +64,20 @@ https://roadmapper-theta.vercel.app/api/roadmap/facebook/react/light
 
 ### In Your README
 
-**Interactive Viewer (Recommended):**
+**Option 1: Embedded with Clickable Cards (Recommended):**
 
-Link to the interactive viewer page where users can click on roadmap items:
+Embed the roadmap with clickable cards using an iframe:
+```html
+## Roadmap
+
+<iframe src="https://roadmapper-theta.vercel.app/embed/your-username/your-repo/dark" width="100%" height="520" frameborder="0"></iframe>
+
+[View Full Roadmap →](https://roadmapper-theta.vercel.app/view/your-username/your-repo/dark)
+```
+
+**Option 2: Link to Interactive Viewer:**
+
+Link to the interactive viewer page:
 ```markdown
 ## Roadmap
 
@@ -75,16 +86,16 @@ Link to the interactive viewer page where users can click on roadmap items:
 [View Interactive Roadmap →](https://roadmapper-theta.vercel.app/view/your-username/your-repo/dark)
 ```
 
-**Static Image:**
+**Option 3: Static Image:**
 
-If you just want to show a static roadmap image:
+If you just want a static roadmap image:
 ```markdown
 ## Roadmap
 
 ![Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/your-username/your-repo/dark)
 ```
 
-> **Note:** Due to GitHub's security restrictions, embedded SVGs cannot have clickable links. Use the interactive viewer link to allow users to click on roadmap items and view the issues.
+> **Note:** GitHub may not render iframes in markdown for security reasons. If the iframe doesn't work, use Option 2 to link to the interactive viewer page.
 
 ## Color Schemes
 

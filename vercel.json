@@ -12,12 +12,20 @@
     {
       "src": "api/view.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "api/embed.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/",
       "dest": "/api/index.js"
+    },
+    {
+      "src": "/embed/(?<owner>[^/]+)/(?<repo>[^/]+)/(?<colorScheme>[^/]+)?",
+      "dest": "/api/embed.js"
     },
     {
       "src": "/view/(?<owner>[^/]+)/(?<repo>[^/]+)/(?<colorScheme>[^/]+)?",
