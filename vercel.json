@@ -20,9 +20,17 @@
     {
       "src": "api/html.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "public/**",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
+    {
+      "src": "/logo.svg",
+      "dest": "/public/logo.svg"
+    },
     {
       "src": "/",
       "dest": "/api/index.js"
@@ -40,7 +48,7 @@
       "dest": "/api/view.js"
     },
     {
-      "src": "/api/roadmap/(?<owner>[^/]+)/(?<repo>[^/]+)/(?<colorScheme>[^/]+)?",
+      "src": "/(?<owner>[^/]+)/(?<repo>[^/]+)/(?<colorScheme>[^/]+)?",
       "dest": "/api/roadmap.js"
     }
   ]

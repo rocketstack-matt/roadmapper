@@ -11,7 +11,7 @@ module.exports = async (req, res) => {
   const repo = match[2];
   const colorScheme = match[3] || 'dark';
 
-  const svgUrl = `https://roadmapper.rocketstack.co/api/roadmap/${owner}/${repo}/${colorScheme}`;
+  const svgUrl = `https://roadmapper.rocketstack.co/${owner}/${repo}/${colorScheme}`;
 
   const html = `
 <!DOCTYPE html>

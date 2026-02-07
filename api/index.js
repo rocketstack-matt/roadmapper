@@ -73,17 +73,18 @@ module.exports = async (req, res) => {
 
     .logo-container {
       display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 16px;
+      gap: 8px;
     }
 
     .logo {
-      height: 50px;
+      height: 35px;
       width: auto;
     }
 
     .logo-text {
-      font-size: 28px;
+      font-size: 24px;
       font-weight: 700;
       color: var(--text-primary);
     }
@@ -303,6 +304,33 @@ module.exports = async (req, res) => {
       font-size: 14px;
     }
 
+    /* GitHub-style labels */
+    .gh-label {
+      display: inline-block;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 18px;
+      border-radius: 12px;
+      white-space: nowrap;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    }
+
+    .gh-label-now {
+      background: #2da44e;
+      color: white;
+    }
+
+    .gh-label-later {
+      background: #fb8500;
+      color: white;
+    }
+
+    .gh-label-future {
+      background: #8b949e;
+      color: white;
+    }
+
     /* Footer */
     .footer {
       border-top: 1px solid var(--border-color);
@@ -321,6 +349,14 @@ module.exports = async (req, res) => {
       text-decoration: underline;
     }
 
+    .avatar {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
       .hero h1 {
@@ -335,8 +371,12 @@ module.exports = async (req, res) => {
         font-size: 28px;
       }
 
+      .logo {
+        height: 30px;
+      }
+
       .logo-text {
-        display: none;
+        font-size: 20px;
       }
     }
   </style>
@@ -347,30 +387,7 @@ module.exports = async (req, res) => {
     <div class="container">
       <div class="header-content">
         <div class="logo-container">
-          <svg class="logo" viewBox="0 0 800 500" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="315" cy="195" r="45" fill="var(--bg-primary)"/>
-            <circle cx="315" cy="195" r="35" fill="var(--bg-primary)"/>
-            <path d="M 315 160 A 35 35 0 0 1 315 230 A 35 35 0 0 1 315 160" fill="none" stroke="#1E88E5" stroke-width="20"/>
-            <line x1="350" y1="195" x2="450" y2="195" stroke="url(#gradient1)" stroke-width="18" stroke-linecap="round"/>
-            <circle cx="495" cy="195" r="45" fill="var(--bg-primary)"/>
-            <circle cx="495" cy="195" r="35" fill="var(--bg-primary)"/>
-            <path d="M 495 160 A 35 35 0 0 1 495 230 A 35 35 0 0 1 495 160" fill="none" stroke="#26A69A" stroke-width="20"/>
-            <line x1="530" y1="195" x2="630" y2="195" stroke="url(#gradient2)" stroke-width="18" stroke-linecap="round"/>
-            <circle cx="655" cy="195" r="45" fill="var(--bg-primary)"/>
-            <circle cx="655" cy="195" r="35" fill="var(--bg-primary)"/>
-            <path d="M 655 160 A 35 35 0 0 1 655 230 A 35 35 0 0 1 655 160" fill="none" stroke="#66BB6A" stroke-width="20"/>
-            <path d="M 700 195 L 775 195 M 745 165 L 775 195 L 745 225" stroke="#66BB6A" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
-            <defs>
-              <linearGradient id="gradient1" x1="350" y1="195" x2="450" y2="195">
-                <stop offset="0%" stop-color="#1E88E5"/>
-                <stop offset="100%" stop-color="#26A69A"/>
-              </linearGradient>
-              <linearGradient id="gradient2" x1="530" y1="195" x2="630" y2="195">
-                <stop offset="0%" stop-color="#26A69A"/>
-                <stop offset="100%" stop-color="#66BB6A"/>
-              </linearGradient>
-            </defs>
-          </svg>
+          <img src="/logo.svg" alt="Roadmapper" class="logo">
           <span class="logo-text">Roadmapper</span>
         </div>
         <button class="theme-toggle" onclick="toggleTheme()">
@@ -402,7 +419,7 @@ module.exports = async (req, res) => {
         <div class="step">
           <div class="step-number">1</div>
           <h3 class="step-title">Label Your Issues</h3>
-          <p class="step-description">Add "Roadmap: Now", "Roadmap: Later", or "Roadmap: Future" labels to your GitHub issues</p>
+          <p class="step-description">Add <span class="gh-label gh-label-now">Roadmap: Now</span>, <span class="gh-label gh-label-later">Roadmap: Later</span>, or <span class="gh-label gh-label-future">Roadmap: Future</span> labels to your GitHub issues</p>
         </div>
         <div class="step">
           <div class="step-number">2</div>
@@ -422,9 +439,9 @@ module.exports = async (req, res) => {
   <section class="section" style="background: var(--bg-secondary);">
     <div class="container">
       <h2 class="section-title">Live Example</h2>
-      <p class="section-description">Here's what a roadmap looks like in action</p>
+      <p class="section-description">Click on any card to view the issue on GitHub</p>
       <div class="example-container">
-        <img src="https://roadmapper.rocketstack.co/api/roadmap/rocketstack-matt/roadmapper/dark" alt="Example Roadmap" />
+        <iframe src="https://roadmapper.rocketstack.co/embed/rocketstack-matt/roadmapper/dark" width="100%" height="520" frameborder="0" style="border: none; border-radius: 8px;"></iframe>
       </div>
     </div>
   </section>
@@ -435,12 +452,12 @@ module.exports = async (req, res) => {
       <h2 class="section-title">Get Started</h2>
       <p class="section-description">Add this to your README.md:</p>
 
-      <div class="code-block"><code>[![Roadmap](https://roadmapper.rocketstack.co/api/roadmap/your-username/your-repo/dark)](https://roadmapper.rocketstack.co/view/your-username/your-repo/dark)
+      <div class="code-block"><code>[![Roadmap](https://roadmapper.rocketstack.co/your-username/your-repo/dark)](https://roadmapper.rocketstack.co/view/your-username/your-repo/dark)
 
 > Click the roadmap to view the interactive version with clickable cards.</code></div>
 
       <h3 style="margin-top: 48px; margin-bottom: 24px; text-align: center; font-size: 24px;">URL Format</h3>
-      <div class="code-block"><code>https://roadmapper.rocketstack.co/api/roadmap/{owner}/{repo}/{colorScheme}</code></div>
+      <div class="code-block"><code>https://roadmapper.rocketstack.co/{owner}/{repo}/{colorScheme}</code></div>
 
       <p style="text-align: center; color: var(--text-secondary); margin-top: 16px;">
         <strong>owner</strong>: GitHub username or organization<br>
@@ -483,7 +500,7 @@ module.exports = async (req, res) => {
         <div class="feature-card">
           <div class="feature-icon">⚡</div>
           <h3 class="feature-title">Fast & Serverless</h3>
-          <p class="feature-description">Powered by Vercel's edge network for instant loading</p>
+          <p class="feature-description">Powered by edge computing for instant loading</p>
         </div>
 
         <div class="feature-card">
@@ -498,7 +515,7 @@ module.exports = async (req, res) => {
   <!-- Footer -->
   <footer class="footer">
     <div class="container">
-      <p>Built with ❤️ by <a href="https://github.com/rocketstack-matt" target="_blank">Matthew Bain</a></p>
+      <p>Built with ❤️ by <a href="https://github.com/rocketstack-matt" target="_blank"><img src="/rocketstack-matt.png" alt="rocketstack-matt" class="avatar">@rocketstack-matt</a></p>
       <p style="margin-top: 12px;">
         <a href="https://github.com/rocketstack-matt/roadmapper" target="_blank">GitHub</a> ·
         <a href="https://github.com/rocketstack-matt/roadmapper/issues" target="_blank">Issues</a> ·

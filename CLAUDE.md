@@ -9,7 +9,7 @@ Roadmapper is a Node.js service that generates dynamic SVG roadmap visualization
 ## Architecture
 
 The project supports two deployment modes:
-1. **Vercel Serverless** (production): Uses `api/roadmap.js` as a serverless function
+1. **Serverless** (production): Uses `api/roadmap.js` as a serverless function
 2. **Express Server** (local development): Uses `server.js` with Express routing
 
 Both deployment modes share the same core logic in `roadmap.js`:
@@ -47,9 +47,9 @@ The server runs on port 5002 by default (configurable via PORT environment varia
 GET /roadmap/:owner/:repo/:colorScheme?
 ```
 
-### Production (Vercel)
+### Production (Serverless)
 ```
-GET /api/roadmap/:owner/:repo/:colorScheme?
+GET /:owner/:repo/:colorScheme?
 ```
 
 Parameters:
@@ -66,6 +66,6 @@ Example: `/api/roadmap/facebook/react/light`
 
 ## Deployment
 
-The project is configured for Vercel deployment via `vercel.json`, which:
+The project is configured for serverless deployment via `vercel.json`, which:
 - Builds `api/roadmap.js` as a serverless function using `@vercel/node`
-- Routes requests matching `/api/roadmap/:owner/:repo/:colorScheme?` to the serverless function
+- Routes requests to the appropriate serverless functions

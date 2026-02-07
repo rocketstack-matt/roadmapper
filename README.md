@@ -33,7 +33,7 @@ Simply label your GitHub issues with `Roadmap: Now`, `Roadmap: Later`, or `Roadm
 
 Here's what this project's roadmap looks like:
 
-[![Roadmap](https://roadmapper.rocketstack.co/api/roadmap/rocketstack-matt/roadmapper/dark)](https://roadmapper.rocketstack.co/view/rocketstack-matt/roadmapper/dark)
+[![Roadmap](https://roadmapper.rocketstack.co/rocketstack-matt/roadmapper/dark)](https://roadmapper.rocketstack.co/view/rocketstack-matt/roadmapper/dark)
 
 > **💡 Click the roadmap image above** to open the interactive viewer where each card is clickable and links directly to its GitHub issue. Due to GitHub's security restrictions, roadmap cards cannot be made clickable when embedded directly in markdown.
 
@@ -46,12 +46,12 @@ Here's what this project's roadmap looks like:
 
 2. **Generate your roadmap**: Use the URL format:
    ```
-   https://roadmapper.rocketstack.co/api/roadmap/{owner}/{repo}/{colorScheme}
+   https://roadmapper.rocketstack.co/{owner}/{repo}/{colorScheme}
    ```
 
 3. **Add to your README**: Link to the interactive viewer page where users can click on items:
    ```markdown
-   [![Roadmap](https://roadmapper.rocketstack.co/api/roadmap/owner/repo/dark)](https://roadmapper.rocketstack.co/view/owner/repo/dark)
+   [![Roadmap](https://roadmapper.rocketstack.co/owner/repo/dark)](https://roadmapper.rocketstack.co/view/owner/repo/dark)
    ```
 
 ## Usage
@@ -59,7 +59,7 @@ Here's what this project's roadmap looks like:
 ### URL Format
 
 ```
-https://roadmapper.rocketstack.co/api/roadmap/{owner}/{repo}/{colorScheme}
+https://roadmapper.rocketstack.co/{owner}/{repo}/{colorScheme}
 ```
 
 **Parameters:**
@@ -71,12 +71,12 @@ https://roadmapper.rocketstack.co/api/roadmap/{owner}/{repo}/{colorScheme}
 
 **Dark theme (default):**
 ```
-https://roadmapper.rocketstack.co/api/roadmap/facebook/react/dark
+https://roadmapper.rocketstack.co/facebook/react/dark
 ```
 
 **Light theme:**
 ```
-https://roadmapper.rocketstack.co/api/roadmap/facebook/react/light
+https://roadmapper.rocketstack.co/facebook/react/light
 ```
 
 ### In Your README
@@ -88,7 +88,7 @@ This shows a preview image that links to a page where each card is clickable:
 ```markdown
 ## Roadmap
 
-[![Roadmap](https://roadmapper.rocketstack.co/api/roadmap/your-username/your-repo/dark)](https://roadmapper.rocketstack.co/view/your-username/your-repo/dark)
+[![Roadmap](https://roadmapper.rocketstack.co/your-username/your-repo/dark)](https://roadmapper.rocketstack.co/view/your-username/your-repo/dark)
 
 > Click the roadmap to view the interactive version with clickable cards.
 ```
@@ -98,7 +98,7 @@ This shows a preview image that links to a page where each card is clickable:
 If you just want a static roadmap image without clickable links:
 
 ```markdown
-![Roadmap](https://roadmapper.rocketstack.co/api/roadmap/your-username/your-repo/dark)
+![Roadmap](https://roadmapper.rocketstack.co/your-username/your-repo/dark)
 ```
 
 **For Documentation Sites (Non-GitHub)**
@@ -151,10 +151,10 @@ http://localhost:5002/roadmap/{owner}/{repo}/{colorScheme}
 
 ## Deployment
 
-This project is configured for Vercel deployment out of the box:
+This project can be deployed to any serverless platform that supports Node.js:
 
 1. Fork this repository
-2. Import it to Vercel
+2. Connect to your hosting platform
 3. Deploy
 
 No environment variables or configuration needed!
