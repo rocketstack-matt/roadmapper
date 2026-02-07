@@ -14,9 +14,11 @@ Simply label your GitHub issues with `Roadmap: Now`, `Roadmap: Later`, or `Roadm
 
 ## Live Example
 
-Here's what this project's roadmap looks like:
+Here's what this project's roadmap looks like (click on any item to view the issue):
 
-![Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/rocketstack-matt/roadmapper/dark)
+<object data="https://roadmapper-theta.vercel.app/api/roadmap/rocketstack-matt/roadmapper/dark" type="image/svg+xml" width="100%">
+  <img src="https://roadmapper-theta.vercel.app/api/roadmap/rocketstack-matt/roadmapper/dark" alt="Roadmap" />
+</object>
 
 ## How It Works
 
@@ -30,9 +32,11 @@ Here's what this project's roadmap looks like:
    https://roadmapper-theta.vercel.app/api/roadmap/{owner}/{repo}/{colorScheme}
    ```
 
-3. **Embed in your README**: Add the roadmap as an image in your markdown:
-   ```markdown
-   ![Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/owner/repo/dark)
+3. **Embed in your README**: Add the roadmap with clickable issue links:
+   ```html
+   <object data="https://roadmapper-theta.vercel.app/api/roadmap/owner/repo/dark" type="image/svg+xml" width="100%">
+     <img src="https://roadmapper-theta.vercel.app/api/roadmap/owner/repo/dark" alt="Roadmap" />
+   </object>
    ```
 
 ## Usage
@@ -62,12 +66,27 @@ https://roadmapper-theta.vercel.app/api/roadmap/facebook/react/light
 
 ### In Your README
 
-Add this to your README.md:
+**With Clickable Links (Recommended):**
+
+Add this HTML to your README.md to make roadmap items clickable:
+```html
+## Roadmap
+
+<object data="https://roadmapper-theta.vercel.app/api/roadmap/your-username/your-repo/dark" type="image/svg+xml" width="100%">
+  <img src="https://roadmapper-theta.vercel.app/api/roadmap/your-username/your-repo/dark" alt="Project Roadmap" />
+</object>
+```
+
+**Simple Image (No Clickable Links):**
+
+If you prefer simpler markdown syntax:
 ```markdown
 ## Roadmap
 
 ![Project Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/your-username/your-repo/dark)
 ```
+
+> **Note:** The `<object>` tag method preserves clickable links to GitHub issues, while the simple markdown image syntax does not.
 
 ## Color Schemes
 

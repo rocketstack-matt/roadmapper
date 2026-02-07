@@ -309,10 +309,14 @@ module.exports = async (req, res) => {
         <h3>Light Theme</h3>
         <div class="code-block"><code>![Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/your-username/your-repo/light)</code></div>
 
-        <h3>In Markdown</h3>
-        <div class="code-block"><code>## Our Roadmap
+        <h3>With Clickable Links (Recommended)</h3>
+        <p>Use HTML to preserve clickable links to GitHub issues:</p>
+        <div class="code-block"><code>&lt;object data="https://roadmapper-theta.vercel.app/api/roadmap/your-username/your-repo/dark" type="image/svg+xml" width="100%"&gt;
+  &lt;img src="https://roadmapper-theta.vercel.app/api/roadmap/your-username/your-repo/dark" alt="Roadmap" /&gt;
+&lt;/object&gt;</code></div>
 
-![Project Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/your-username/your-repo/dark)</code></div>
+        <h3>Simple Markdown (No Clickable Links)</h3>
+        <div class="code-block"><code>![Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/your-username/your-repo/dark)</code></div>
 
         <h3>Live Example</h3>
         <p>Here's what a roadmap looks like:</p>
