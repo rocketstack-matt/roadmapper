@@ -16,7 +16,7 @@ Simply label your GitHub issues with `Roadmap: Now`, `Roadmap: Later`, or `Roadm
 
 Here's what this project's roadmap looks like:
 
-![Roadmap](https://roadmapper.vercel.app/api/roadmap/rocketstack-matt/roadmapper/dark)
+![Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/rocketstack-matt/roadmapper/dark)
 
 ## How It Works
 
@@ -27,12 +27,12 @@ Here's what this project's roadmap looks like:
 
 2. **Generate your roadmap**: Use the URL format:
    ```
-   https://roadmapper.vercel.app/api/roadmap/{owner}/{repo}/{colorScheme}
+   https://roadmapper-theta.vercel.app/api/roadmap/{owner}/{repo}/{colorScheme}
    ```
 
 3. **Embed in your README**: Add the roadmap as an image in your markdown:
    ```markdown
-   ![Roadmap](https://roadmapper.vercel.app/api/roadmap/owner/repo/dark)
+   ![Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/owner/repo/dark)
    ```
 
 ## Usage
@@ -40,7 +40,7 @@ Here's what this project's roadmap looks like:
 ### URL Format
 
 ```
-https://roadmapper.vercel.app/api/roadmap/{owner}/{repo}/{colorScheme}
+https://roadmapper-theta.vercel.app/api/roadmap/{owner}/{repo}/{colorScheme}
 ```
 
 **Parameters:**
@@ -52,12 +52,12 @@ https://roadmapper.vercel.app/api/roadmap/{owner}/{repo}/{colorScheme}
 
 **Dark theme (default):**
 ```
-https://roadmapper.vercel.app/api/roadmap/facebook/react/dark
+https://roadmapper-theta.vercel.app/api/roadmap/facebook/react/dark
 ```
 
 **Light theme:**
 ```
-https://roadmapper.vercel.app/api/roadmap/facebook/react/light
+https://roadmapper-theta.vercel.app/api/roadmap/facebook/react/light
 ```
 
 ### In Your README
@@ -66,7 +66,7 @@ Add this to your README.md:
 ```markdown
 ## Roadmap
 
-![Project Roadmap](https://roadmapper.vercel.app/api/roadmap/your-username/your-repo/dark)
+![Project Roadmap](https://roadmapper-theta.vercel.app/api/roadmap/your-username/your-repo/dark)
 ```
 
 ## Color Schemes

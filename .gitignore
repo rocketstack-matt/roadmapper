@@ -131,3 +131,5 @@ dist
 .pnp.*
 
 /.idea/
+.vercel
+.env*.local
