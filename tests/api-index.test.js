@@ -62,6 +62,7 @@ describe('api/index', () => {
 
     expect(res.body).toContain('Live Example');
     expect(res.body).toContain('<iframe');
+    expect(res.body).toContain('id="roadmap-iframe"');
     expect(res.body).toContain('/embed/rocketstack-matt/roadmapper/ffffff/24292f');
   });
 
@@ -135,6 +136,27 @@ describe('api/index', () => {
     expect(res.body).toContain('function toggleTheme()');
     expect(res.body).toContain('function updateThemeButton(theme)');
     expect(res.body).toContain('localStorage');
+  });
+
+  test('toggleTheme updates embedded roadmap iframe colors', async () => {
+    const req = createMockReq('/');
+    const res = createMockRes();
+
+    await indexHandler(req, res);
+
+    expect(res.body).toContain('function updateRoadmapTheme(theme)');
+    expect(res.body).toContain("getElementById('roadmap-iframe')");
+    expect(res.body).toContain("bg: '0d1117', text: 'e6edf3'");
+    expect(res.body).toContain("bg: 'ffffff', text: '24292f'");
+  });
+
+  test('initializes roadmap iframe colors based on saved theme', async () => {
+    const req = createMockReq('/');
+    const res = createMockRes();
+
+    await indexHandler(req, res);
+
+    expect(res.body).toContain('updateRoadmapTheme(savedTheme)');
   });
 
   test('includes CSS custom properties for theming', async () => {

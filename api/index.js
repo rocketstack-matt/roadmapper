@@ -593,7 +593,7 @@ module.exports = async (req, res) => {
       <h2 class="section-title">Live Example</h2>
       <p class="section-description">Click on any card to view the issue on GitHub</p>
       <div class="example-container">
-        <iframe src="https://roadmapper.rocketstack.co/embed/rocketstack-matt/roadmapper/ffffff/24292f" width="100%" height="520" frameborder="0" style="border: none; border-radius: 8px;"></iframe>
+        <iframe id="roadmap-iframe" src="https://roadmapper.rocketstack.co/embed/rocketstack-matt/roadmapper/ffffff/24292f" width="100%" height="520" frameborder="0" style="border: none; border-radius: 8px;"></iframe>
       </div>
     </div>
   </section>
@@ -738,6 +738,19 @@ https://roadmapper.rocketstack.co/html/your-username/your-repo/ffffff/24292f</co
       localStorage.setItem('theme', newTheme);
 
       updateThemeButton(newTheme);
+      updateRoadmapTheme(newTheme);
+    }
+
+    function updateRoadmapTheme(theme) {
+      const iframe = document.getElementById('roadmap-iframe');
+      if (!iframe) return;
+      const colors = theme === 'dark'
+        ? { bg: '0d1117', text: 'e6edf3' }
+        : { bg: 'ffffff', text: '24292f' };
+      iframe.src = iframe.src.replace(
+        /\\/[0-9a-fA-F]{3,6}\\/[0-9a-fA-F]{3,6}(\\/?)(\\?.*)?$/,
+        '/' + colors.bg + '/' + colors.text + '$1$2'
+      );
     }
 
     function updateThemeButton(theme) {
@@ -757,6 +770,7 @@ https://roadmapper.rocketstack.co/html/your-username/your-repo/ffffff/24292f</co
     const savedTheme = localStorage.getItem('theme') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
     updateThemeButton(savedTheme);
+    updateRoadmapTheme(savedTheme);
 
     // Embed option toggle
     function showEmbedOption(option) {
