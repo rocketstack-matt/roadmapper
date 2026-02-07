@@ -1,7 +1,7 @@
 module.exports = async (req, res) => {
   // Extract the path from the URL
   const url = req.url;
-  const match = url.match(/\/api\/view\/([^/]+)\/([^/]+)\/?([^/]*)/);
+  const match = url.match(/\/view\/([^/]+)\/([^/]+)\/?([^/]*)/);
 
   if (!match) {
     return res.status(400).send('Invalid URL format');
