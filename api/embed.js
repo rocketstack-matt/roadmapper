@@ -1,13 +1,15 @@
 const { generateRoadmapSVG, fetchIssues } = require('../roadmap');
 
-module.exports = async (req, res) => {
+const { withMiddleware } = require('../lib/middleware');
+
+const handler = async (req, res) => {
   // Extract the path from the URL
   const url = req.url;
-  let match = url.match(/\/embed\/([^/]+)\/([^/]+)\/([^/]+)\/([^/]+)\/?/);
+  let match = url.match(/\/embed\/([^/?]+)\/([^/?]+)\/([^/?]+)\/([^/?]+)\/?/);
 
   // If no match, check for 2-parameter format and redirect to defaults
   if (!match) {
-    const fallbackMatch = url.match(/\/embed\/([^/]+)\/([^/]+)\/?$/);
+    const fallbackMatch = url.match(/\/embed\/([^/?]+)\/([^/?]+)\/?$/);
     if (fallbackMatch) {
       const owner = fallbackMatch[1];
       const repo = fallbackMatch[2];
@@ -27,18 +29,18 @@ module.exports = async (req, res) => {
   const baseUrl = `${protocol}://${host}`;
 
   try {
-    const issues = await fetchIssues(owner, repo);
+    const issues = await fetchIssues(owner, repo, req.cacheTtl);
 
     // Sort issues by number
     issues.sort((a, b) => a.number - b.number);
 
     const columns = {
       now: issues.filter(issue => issue.labels.some(label => label.name === 'Roadmap: Now')),
-      later: issues.filter(issue => issue.labels.some(label => label.name === 'Roadmap: Later')),
-      future: issues.filter(issue => issue.labels.some(label => label.name === 'Roadmap: Future'))
+      next: issues.filter(issue => issue.labels.some(label => label.name === 'Roadmap: Next')),
+      later: issues.filter(issue => issue.labels.some(label => label.name === 'Roadmap: Later'))
     };
 
-    const maxItemsCount = Math.max(columns.now.length, columns.later.length, columns.future.length);
+    const maxItemsCount = Math.max(columns.now.length, columns.next.length, columns.later.length);
     const svgHeight = 140 + (maxItemsCount * 95);
     const svgWidth = 1140;
 
@@ -65,8 +67,8 @@ module.exports = async (req, res) => {
 
     mapAreas = `
       ${createAreas(columns.now, 0)}
-      ${createAreas(columns.later, 1)}
-      ${createAreas(columns.future, 2)}
+      ${createAreas(columns.next, 1)}
+      ${createAreas(columns.later, 2)}
     `;
 
     const html = `<!DOCTYPE html>
@@ -93,3 +95,5 @@ module.exports = async (req, res) => {
     res.status(500).send('Error fetching GitHub issues');
   }
 };
+
+module.exports = withMiddleware(handler);

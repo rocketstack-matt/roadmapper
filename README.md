@@ -29,7 +29,7 @@ Roadmapper transforms your GitHub issues into a clean, three-column visual roadm
 - Status pages
 - Team dashboards
 
-Simply add one of three labels to your GitHub issues—<span style="display: inline-block; padding: 2px 8px; font-size: 12px; font-weight: 600; line-height: 18px; border-radius: 12px; background: #2da44e; color: white;">Roadmap: Now</span>, <span style="display: inline-block; padding: 2px 8px; font-size: 12px; font-weight: 600; line-height: 18px; border-radius: 12px; background: #fb8500; color: white;">Roadmap: Later</span>, or <span style="display: inline-block; padding: 2px 8px; font-size: 12px; font-weight: 600; line-height: 18px; border-radius: 12px; background: #8b949e; color: white;">Roadmap: Future</span>—and Roadmapper does the rest.
+Simply add one of three labels to your GitHub issues—<span style="display: inline-block; padding: 2px 8px; font-size: 12px; font-weight: 600; line-height: 18px; border-radius: 12px; background: #2da44e; color: white;">Roadmap: Now</span>, <span style="display: inline-block; padding: 2px 8px; font-size: 12px; font-weight: 600; line-height: 18px; border-radius: 12px; background: #fb8500; color: white;">Roadmap: Next</span>, or <span style="display: inline-block; padding: 2px 8px; font-size: 12px; font-weight: 600; line-height: 18px; border-radius: 12px; background: #8b949e; color: white;">Roadmap: Later</span>—and Roadmapper does the rest.
 
 ## Live Example
 
@@ -39,22 +39,40 @@ Here's what this project's roadmap looks like:
 
 > **💡 Click the roadmap image above** to open the interactive viewer where each card is clickable and links directly to its GitHub issue. Due to GitHub's security restrictions, roadmap cards cannot be made clickable when embedded directly in markdown.
 
-## How It Works
+## Getting Started
 
-1. **Label your issues**: Add one of these labels to your GitHub issues:
+1. **Register your repository** at [roadmapper.rocketstack.co](https://roadmapper.rocketstack.co) — enter your GitHub owner, repo name, and email to receive your API key.
+
+2. **Confirm your email** — click the confirmation link sent to your email. Your key activates after confirmation (the link expires in 24 hours).
+
+3. **Add a `.roadmapper` file** to the root of your repository containing the API key you received. Commit and push.
+
+4. **Label your issues**: Add one of these labels to your GitHub issues:
    - <span style="display: inline-block; padding: 2px 8px; font-size: 12px; font-weight: 600; line-height: 18px; border-radius: 12px; background: #2da44e; color: white;">Roadmap: Now</span> - Top priority items you're working on right now
-   - <span style="display: inline-block; padding: 2px 8px; font-size: 12px; font-weight: 600; line-height: 18px; border-radius: 12px; background: #fb8500; color: white;">Roadmap: Later</span> - Next priority items planned for soon
-   - <span style="display: inline-block; padding: 2px 8px; font-size: 12px; font-weight: 600; line-height: 18px; border-radius: 12px; background: #8b949e; color: white;">Roadmap: Future</span> - Longer-term items under consideration
+   - <span style="display: inline-block; padding: 2px 8px; font-size: 12px; font-weight: 600; line-height: 18px; border-radius: 12px; background: #fb8500; color: white;">Roadmap: Next</span> - Next priority items planned for soon
+   - <span style="display: inline-block; padding: 2px 8px; font-size: 12px; font-weight: 600; line-height: 18px; border-radius: 12px; background: #8b949e; color: white;">Roadmap: Later</span> - Longer-term items under consideration
 
-2. **Generate your roadmap**: Use the URL format:
+5. **Embed your roadmap**: Use the URL format:
    ```
    https://roadmapper.rocketstack.co/{owner}/{repo}/{bgColor}/{textColor}
    ```
 
-3. **Add to your README**: Link to the interactive viewer page where users can click on items:
+6. **Add to your README**: Link to the interactive viewer page where users can click on items:
    ```markdown
    [![Roadmap](https://roadmapper.rocketstack.co/owner/repo/ffffff/24292f)](https://roadmapper.rocketstack.co/view/owner/repo/ffffff/24292f)
    ```
+
+### The `.roadmapper` File
+
+The `.roadmapper` file proves you own the repository and authorizes Roadmapper to generate roadmaps for it. It should contain only the API key you received during registration:
+
+```
+rm_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4
+```
+
+Place this file in the root of your repository. Roadmapper checks this file periodically (every 24 hours) to verify your registration.
+
+## How It Works
 
 ## Usage
 
@@ -179,18 +197,24 @@ http://localhost:5002/rocketstack-matt/roadmapper/ffffff/24292f
 This project can be deployed to any serverless platform that supports Node.js:
 
 1. Fork this repository
-2. Connect to your hosting platform
-3. Deploy
+2. Connect to your hosting platform (e.g., Vercel)
+3. Set environment variables:
+   - `GITHUB_TOKEN` — GitHub Personal Access Token (recommended, for higher API rate limits)
+   - `UPSTASH_REDIS_REST_URL` — Upstash Redis REST URL (required for registration, rate limiting, caching)
+   - `UPSTASH_REDIS_REST_TOKEN` — Upstash Redis REST token
+   - `RESEND_API_KEY` — Resend API key (optional, enables email confirmation on registration)
+   - `FROM_EMAIL` — Sender email address (optional, defaults to `Roadmapper <noreply@roadmapper.rocketstack.co>`)
+4. Deploy
 
-No environment variables or configuration needed!
+Without the Upstash Redis variables, the service runs unrestricted (no registration required, no rate limits, no caching). Without `RESEND_API_KEY`, keys work immediately after registration (no email confirmation required).
 
 ## How Labels Work
 
 Roadmapper looks for these exact label names on your GitHub issues:
 
 - <span style="display: inline-block; padding: 2px 8px; font-size: 12px; font-weight: 600; line-height: 18px; border-radius: 12px; background: #2da44e; color: white;">Roadmap: Now</span> - Items appear in the "Now" column
-- <span style="display: inline-block; padding: 2px 8px; font-size: 12px; font-weight: 600; line-height: 18px; border-radius: 12px; background: #fb8500; color: white;">Roadmap: Later</span> - Items appear in the "Later" column
-- <span style="display: inline-block; padding: 2px 8px; font-size: 12px; font-weight: 600; line-height: 18px; border-radius: 12px; background: #8b949e; color: white;">Roadmap: Future</span> - Items appear in the "Future" column
+- <span style="display: inline-block; padding: 2px 8px; font-size: 12px; font-weight: 600; line-height: 18px; border-radius: 12px; background: #fb8500; color: white;">Roadmap: Next</span> - Items appear in the "Next" column
+- <span style="display: inline-block; padding: 2px 8px; font-size: 12px; font-weight: 600; line-height: 18px; border-radius: 12px; background: #8b949e; color: white;">Roadmap: Later</span> - Items appear in the "Later" column
 
 ### Label Colors
 
@@ -205,14 +229,26 @@ Issues are automatically sorted by issue number within each column.
 - ✨ Clean, modern SVG output
 - 🎨 Fully customizable colors (background and text)
 - 🎨 Automatic label color matching from GitHub
-- 🔄 Real-time updates from GitHub issues
+- 🔄 Automatic updates from GitHub issues (free tier refreshes hourly)
 - 📱 Responsive design
 - 🚀 Serverless deployment ready
-- 🔒 No authentication required (uses public GitHub API)
+- 🔑 Per-repository API keys with rate limiting
+- ⚡ Built-in response caching for fast load times
 
-## API Rate Limits
+## Rate Limits & Caching
 
-Roadmapper uses the public GitHub API, which has rate limits:
+Roadmapper uses per-repository rate limiting and response caching:
+
+| Tier | Roadmap Refresh | Rate Limit |
+|------|-----------------|------------|
+| Free (registered) | Every 60 minutes | 60 requests/hour |
+| Paid (coming soon) | Every 30 seconds | ~Unlimited |
+
+The cache TTL controls how often your roadmap data refreshes from GitHub. All viewers within the cache window see the same cached response. The rate limit is a secondary protection against abuse.
+
+### GitHub API Rate Limits
+
+Roadmapper also uses the GitHub API, which has its own rate limits:
 - **Unauthenticated requests**: 60 requests per hour per IP
 - **Authenticated requests**: 5,000 requests per hour
 

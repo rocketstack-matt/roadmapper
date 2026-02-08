@@ -19,8 +19,8 @@ const createMockIssue = (number, title, labelName, labelColor) => ({
 
 const mockIssues = [
   createMockIssue(1, 'Feature A', 'Roadmap: Now', '2da44e'),
-  createMockIssue(2, 'Feature B', 'Roadmap: Later', 'fb8500'),
-  createMockIssue(3, 'Feature C', 'Roadmap: Future', '8b949e'),
+  createMockIssue(2, 'Feature B', 'Roadmap: Next', 'fb8500'),
+  createMockIssue(3, 'Feature C', 'Roadmap: Later', '8b949e'),
 ];
 
 describe('validateHexColor', () => {
@@ -136,15 +136,15 @@ describe('generateRoadmapSVG', () => {
   test('includes three column headers', () => {
     const svg = generateRoadmapSVG(mockIssues, 'ffffff', '24292f');
     expect(svg).toContain('>Now<');
+    expect(svg).toContain('>Next<');
     expect(svg).toContain('>Later<');
-    expect(svg).toContain('>Future<');
   });
 
   test('includes column subtitles', () => {
     const svg = generateRoadmapSVG(mockIssues, 'ffffff', '24292f');
     expect(svg).toContain("We're working on it right now");
-    expect(svg).toContain('Next up on our roadmap');
-    expect(svg).toContain('Planned for the future');
+    expect(svg).toContain('Coming up next');
+    expect(svg).toContain('On the horizon');
   });
 
   test('includes issue titles', () => {
@@ -223,8 +223,8 @@ describe('generateRoadmapSVG', () => {
     const svg = generateRoadmapSVG([], 'ffffff', '24292f');
     expect(svg).toContain('<svg');
     expect(svg).toContain('>Now<');
+    expect(svg).toContain('>Next<');
     expect(svg).toContain('>Later<');
-    expect(svg).toContain('>Future<');
   });
 
   test('calculates SVG height based on max items per column', () => {

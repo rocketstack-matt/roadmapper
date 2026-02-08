@@ -59,24 +59,24 @@ describe('api/embed', () => {
     expect(res.body).toContain('href="https://github.com/owner/repo/issues/1"');
   });
 
+  test('generates image map areas for Next column', async () => {
+    const req = createMockReq('/embed/owner/repo/ffffff/24292f');
+    const res = createMockRes();
+
+    await embedHandler(req, res);
+
+    // Next column (columnIndex=1): x1=395, y1=130, x2=745, y2=205
+    expect(res.body).toContain('coords="395,130,745,205"');
+    expect(res.body).toContain('href="https://github.com/owner/repo/issues/2"');
+  });
+
   test('generates image map areas for Later column', async () => {
     const req = createMockReq('/embed/owner/repo/ffffff/24292f');
     const res = createMockRes();
 
     await embedHandler(req, res);
 
-    // Later column (columnIndex=1): x1=395, y1=130, x2=745, y2=205
-    expect(res.body).toContain('coords="395,130,745,205"');
-    expect(res.body).toContain('href="https://github.com/owner/repo/issues/2"');
-  });
-
-  test('generates image map areas for Future column', async () => {
-    const req = createMockReq('/embed/owner/repo/ffffff/24292f');
-    const res = createMockRes();
-
-    await embedHandler(req, res);
-
-    // Future column (columnIndex=2): x1=775, y1=130, x2=1125, y2=205
+    // Later column (columnIndex=2): x1=775, y1=130, x2=1125, y2=205
     expect(res.body).toContain('coords="775,130,1125,205"');
     expect(res.body).toContain('href="https://github.com/owner/repo/issues/3"');
   });

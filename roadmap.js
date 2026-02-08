@@ -98,11 +98,11 @@ const generateRoadmapSVG = (issues, bgColor, textColor) => {
 
     const columns = {
         now: filterAndExtractColor('Roadmap: Now'),
-        later: filterAndExtractColor('Roadmap: Later'),
-        future: filterAndExtractColor('Roadmap: Future')
+        next: filterAndExtractColor('Roadmap: Next'),
+        later: filterAndExtractColor('Roadmap: Later')
     };
 
-    const maxItemsCount = Math.max(columns.now.length, columns.later.length, columns.future.length);
+    const maxItemsCount = Math.max(columns.now.length, columns.next.length, columns.later.length);
     const svgHeight = 140 + (maxItemsCount * 95);
 
     return `
@@ -115,16 +115,37 @@ const generateRoadmapSVG = (issues, bgColor, textColor) => {
         </style>
       </defs>
       ${createColumn('Now', "We're working on it right now", columns.now, 0, 'now', headerColor, subheaderColor, backgroundColor, cardBackground, cardTextColor, shadowColor, hoverShadowColor)}
-      ${createColumn('Later', "Next up on our roadmap", columns.later, 380, 'later', headerColor, subheaderColor, backgroundColor, cardBackground, cardTextColor, shadowColor, hoverShadowColor)}
-      ${createColumn('Future', "Planned for the future", columns.future, 760, 'future', headerColor, subheaderColor, backgroundColor, cardBackground, cardTextColor, shadowColor, hoverShadowColor)}
+      ${createColumn('Next', "Coming up next", columns.next, 380, 'next', headerColor, subheaderColor, backgroundColor, cardBackground, cardTextColor, shadowColor, hoverShadowColor)}
+      ${createColumn('Later', "On the horizon", columns.later, 760, 'later', headerColor, subheaderColor, backgroundColor, cardBackground, cardTextColor, shadowColor, hoverShadowColor)}
     </svg>
   `;
 };
 
-const fetchIssues = async (owner, repo) => {
-    const headers = {};
+const fetchIssues = async (owner, repo, cacheTtlSeconds) => {
+    // Check cache first (if caching is available)
+    if (cacheTtlSeconds) {
+        const { getCachedIssues, cacheIssues } = require('./lib/cache');
+        const cached = await getCachedIssues(owner, repo);
+        if (cached) {
+            return cached;
+        }
 
-    // Add authentication if GitHub token is available
+        const headers = {};
+        if (process.env.GITHUB_TOKEN) {
+            headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
+        }
+
+        const response = await axios.get(
+            `https://api.github.com/repos/${owner}/${repo}/issues?per_page=100`,
+            { headers }
+        );
+
+        await cacheIssues(owner, repo, response.data, cacheTtlSeconds);
+        return response.data;
+    }
+
+    // No caching — fetch directly from GitHub
+    const headers = {};
     if (process.env.GITHUB_TOKEN) {
         headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
     }

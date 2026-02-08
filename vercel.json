@@ -22,6 +22,14 @@
       "use": "@vercel/node"
     },
     {
+      "src": "api/register.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/confirm.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "public/**",
       "use": "@vercel/static"
     }
@@ -34,6 +42,15 @@
     {
       "src": "/rocketstack-matt.png",
       "dest": "/public/rocketstack-matt.png"
+    },
+    {
+      "src": "/api/register",
+      "methods": ["POST"],
+      "dest": "/api/register.js"
+    },
+    {
+      "src": "/api/confirm",
+      "dest": "/api/confirm.js"
     },
     {
       "src": "/",

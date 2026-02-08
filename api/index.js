@@ -1,4 +1,11 @@
-module.exports = async (req, res) => {
+const { withMiddleware } = require('../lib/middleware');
+
+const handler = async (req, res) => {
+  // Detect environment: use localhost for local development, production URL otherwise
+  const host = req.headers.host || 'roadmapper.rocketstack.co';
+  const protocol = host.includes('localhost') ? 'http' : 'https';
+  const baseUrl = `${protocol}://${host}`;
+
   const html = `
 <!DOCTYPE html>
 <html lang="en">
@@ -473,14 +480,245 @@ module.exports = async (req, res) => {
       color: white;
     }
 
-    .gh-label-later {
+    .gh-label-next {
       background: #fb8500;
       color: white;
     }
 
-    .gh-label-future {
+    .gh-label-later {
       background: #8b949e;
       color: white;
+    }
+
+    /* Step Sections */
+    .step-section {
+      display: flex;
+      gap: 20px;
+      margin-top: 48px;
+    }
+
+    .step-section:first-child {
+      margin-top: 32px;
+    }
+
+    .step-number {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      min-width: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-teal) 100%);
+      color: white;
+      font-weight: 700;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .step-body {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .step-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+      line-height: 36px;
+    }
+
+    .step-description {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+
+    .step-description code {
+      background: var(--bg-secondary);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 13px;
+    }
+
+    @media (max-width: 600px) {
+      .step-section {
+        gap: 14px;
+      }
+    }
+
+    /* Register Form */
+    .register-card {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 32px;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    @media (max-width: 600px) {
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: inherit;
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      transition: border-color 0.2s;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+    }
+
+    .register-btn {
+      background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-teal) 100%);
+      color: white;
+      border: none;
+      padding: 12px 32px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .register-btn:hover {
+      opacity: 0.9;
+    }
+
+    .register-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .result-success {
+      margin-top: 24px;
+      padding: 20px;
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      border-radius: 8px;
+      color: #155724;
+    }
+
+    [data-theme="dark"] .result-success {
+      background: #1a3a1a;
+      border-color: #2d5a2d;
+      color: #a3d9a5;
+    }
+
+    .result-success h3 {
+      margin-bottom: 12px;
+    }
+
+    .key-display {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(0, 0, 0, 0.1);
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      word-break: break-all;
+    }
+
+    [data-theme="dark"] .key-display {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .key-display code {
+      flex: 1;
+      font-size: 14px;
+      font-family: 'Monaco', 'Menlo', monospace;
+    }
+
+    .copy-key-btn {
+      background: #155724;
+      color: white;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    [data-theme="dark"] .copy-key-btn {
+      background: #2d5a2d;
+    }
+
+    .key-instructions {
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .key-instructions code {
+      background: rgba(0, 0, 0, 0.1);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 13px;
+    }
+
+    [data-theme="dark"] .key-instructions code {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .key-step {
+      margin-top: 8px;
+      padding: 12px;
+      background: rgba(0, 0, 0, 0.1);
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    [data-theme="dark"] .key-step {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .key-step code {
+      background: none;
+      padding: 0;
+      font-size: 12px;
+      white-space: pre;
+    }
+
+    .result-error {
+      margin-top: 24px;
+      padding: 16px 20px;
+      background: #f8d7da;
+      border: 1px solid #f5c6cb;
+      border-radius: 8px;
+      color: #721c24;
+    }
+
+    [data-theme="dark"] .result-error {
+      background: #3a1a1a;
+      border-color: #5a2d2d;
+      color: #d9a3a3;
     }
 
     /* Footer */
@@ -571,7 +809,7 @@ module.exports = async (req, res) => {
         <div class="step">
           <div class="step-number">1</div>
           <h3 class="step-title">Label Your Issues</h3>
-          <p class="step-description">Add <span class="gh-label gh-label-now">Roadmap: Now</span>, <span class="gh-label gh-label-later">Roadmap: Later</span>, or <span class="gh-label gh-label-future">Roadmap: Future</span> labels to your GitHub issues</p>
+          <p class="step-description">Add <span class="gh-label gh-label-now">Roadmap: Now</span>, <span class="gh-label gh-label-next">Roadmap: Next</span>, or <span class="gh-label gh-label-later">Roadmap: Later</span> labels to your GitHub issues</p>
         </div>
         <div class="step">
           <div class="step-number">2</div>
@@ -581,7 +819,7 @@ module.exports = async (req, res) => {
         <div class="step">
           <div class="step-number">3</div>
           <h3 class="step-title">Share Anywhere</h3>
-          <p class="step-description">Embed in your README, docs, or website - it updates automatically</p>
+          <p class="step-description">Embed in your README, docs, or website - it refreshes automatically every hour</p>
         </div>
       </div>
     </div>
@@ -593,7 +831,7 @@ module.exports = async (req, res) => {
       <h2 class="section-title">Live Example</h2>
       <p class="section-description">Click on any card to view the issue on GitHub</p>
       <div class="example-container">
-        <iframe id="roadmap-iframe" src="https://roadmapper.rocketstack.co/embed/rocketstack-matt/roadmapper/ffffff/24292f" width="100%" height="520" frameborder="0" style="border: none; border-radius: 8px;"></iframe>
+        <iframe id="roadmap-iframe" src="${baseUrl}/embed/rocketstack-matt/roadmapper/ffffff/24292f" width="100%" height="520" frameborder="0" style="border: none; border-radius: 8px;"></iframe>
       </div>
     </div>
   </section>
@@ -602,69 +840,140 @@ module.exports = async (req, res) => {
   <section class="section" id="get-started">
     <div class="container">
       <h2 class="section-title">Get Started</h2>
+      <p class="section-description">Three steps to get your roadmap live</p>
 
-      <!-- URL Format Box -->
-      <div class="url-format-box">
-        <h3 class="url-format-title">📍 Your Roadmap URL</h3>
-        <p class="url-format-description">Every roadmap has a unique URL based on your GitHub repository. This URL generates a live SVG that updates automatically when your issues change.</p>
+      <!-- Step 1: Register -->
+      <div class="step-section">
+        <span class="step-number">1</span>
+        <div class="step-body">
+          <h3 class="step-title">Register your repository</h3>
+          <p class="step-description">Enter your GitHub repo details to get an API key. This key identifies your repository and enables roadmap generation.</p>
 
-        <div class="url-format-code">
-          <code>https://roadmapper.rocketstack.co/<span class="url-param">{owner}</span>/<span class="url-param">{repo}</span>/<span class="url-param">{bgColor}</span>/<span class="url-param">{textColor}</span></code>
-        </div>
+          <div class="register-card">
+            <form id="register-form" onsubmit="handleRegister(event)">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="reg-owner">GitHub Owner</label>
+                  <input type="text" id="reg-owner" placeholder="e.g. facebook" required>
+                </div>
+                <div class="form-group">
+                  <label for="reg-repo">Repository</label>
+                  <input type="text" id="reg-repo" placeholder="e.g. react" required>
+                </div>
+                <div class="form-group">
+                  <label for="reg-email">Email</label>
+                  <input type="email" id="reg-email" placeholder="you@example.com" required>
+                </div>
+              </div>
+              <button type="submit" class="register-btn" id="register-btn">Register</button>
+            </form>
 
-        <div class="url-params">
-          <div class="url-param-item">
-            <strong>owner</strong>
-            <span>Your GitHub username or organization</span>
+            <div id="register-result" style="display: none;">
+              <div id="register-success" style="display: none;">
+                <div class="result-success">
+                  <h3>Your API Key</h3>
+                  <div class="key-display">
+                    <code id="api-key-value"></code>
+                    <button onclick="copyKey()" class="copy-key-btn">Copy</button>
+                  </div>
+                  <div class="key-instructions">
+                    <p><strong>Save this key now</strong> — it will not be shown again.</p>
+                    <p>Next, follow Step 2 below to add this key to your repository.</p>
+                  </div>
+                </div>
+              </div>
+              <div id="register-error" style="display: none;">
+                <div class="result-error">
+                  <p id="register-error-msg"></p>
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="url-param-item">
-            <strong>repo</strong>
-            <span>Your repository name</span>
-          </div>
-          <div class="url-param-item">
-            <strong>bgColor</strong>
-            <span>Background color as hex (without #)</span>
-          </div>
-          <div class="url-param-item">
-            <strong>textColor</strong>
-            <span>Text color as hex (without #)</span>
-          </div>
-        </div>
-
-        <div class="url-example">
-          <strong>Example:</strong> <code>https://roadmapper.rocketstack.co/rocketstack-matt/roadmapper/ffffff/24292f</code>
-          <p style="margin-top: 8px; color: var(--text-secondary); font-size: 14px;">This creates a white background (ffffff) with dark text (24292f)</p>
         </div>
       </div>
 
-      <!-- Embedding Options -->
-      <h3 style="margin-top: 48px; margin-bottom: 16px; text-align: center; font-size: 22px; color: var(--text-primary);">How to Embed Your Roadmap</h3>
-      <p class="section-description">Choose your embedding method:</p>
+      <!-- Step 2: Add key to repo -->
+      <div class="step-section">
+        <span class="step-number">2</span>
+        <div class="step-body">
+          <h3 class="step-title">Add the key to your repository</h3>
+          <p class="step-description">Create a <code>.roadmapper</code> file in the root of your repo containing your API key. This proves you own the repository and authorizes Roadmapper to generate roadmaps for it. The key is checked once and then cached — Roadmapper only re-verifies it every 24 hours.</p>
 
-      <div class="embed-tabs">
-        <button class="embed-tab active" onclick="showEmbedOption('github')">GitHub README</button>
-        <button class="embed-tab" onclick="showEmbedOption('iframe')">Website (iframe)</button>
-        <button class="embed-tab" onclick="showEmbedOption('html')">HTML Image Map</button>
+          <div class="register-card">
+            <div class="key-step" style="display: flex; align-items: center; gap: 12px;">
+              <code id="step2-command" style="flex: 1;">echo "rm_your_key_here" > .roadmapper && git add .roadmapper && git commit -m "Add Roadmapper key" && git push</code>
+              <button onclick="copyStep2Command()" class="copy-key-btn" id="step2-copy-btn">Copy</button>
+            </div>
+            <p style="margin-top: 12px; font-size: 13px; color: var(--text-secondary);">The <code>.roadmapper</code> file should contain only the API key — nothing else. It's safe to commit to public repos since the key is only used to identify your repository with Roadmapper.</p>
+          </div>
+        </div>
       </div>
 
-      <div class="embed-content">
-        <div id="embed-github" class="embed-option active">
-          <p class="embed-description">For GitHub READMEs - Link to the viewer page for clickable cards (GitHub strips interactive elements from embedded images):</p>
-          <div class="code-block"><code>[![Roadmap](https://roadmapper.rocketstack.co/your-username/your-repo/ffffff/24292f)](https://roadmapper.rocketstack.co/view/your-username/your-repo/ffffff/24292f)
+      <!-- Step 3: Embed -->
+      <div class="step-section">
+        <span class="step-number">3</span>
+        <div class="step-body">
+          <h3 class="step-title">Embed your roadmap</h3>
+          <p class="step-description">Your roadmap URL follows this format — just swap in your details:</p>
+
+          <div class="url-format-box">
+            <div class="url-format-code">
+              <code>https://roadmapper.rocketstack.co/<span class="url-param">{owner}</span>/<span class="url-param">{repo}</span>/<span class="url-param">{bgColor}</span>/<span class="url-param">{textColor}</span></code>
+            </div>
+
+            <div class="url-params">
+              <div class="url-param-item">
+                <strong>owner</strong>
+                <span>Your GitHub username or organization</span>
+              </div>
+              <div class="url-param-item">
+                <strong>repo</strong>
+                <span>Your repository name</span>
+              </div>
+              <div class="url-param-item">
+                <strong>bgColor</strong>
+                <span>Background color as hex (without #)</span>
+              </div>
+              <div class="url-param-item">
+                <strong>textColor</strong>
+                <span>Text color as hex (without #)</span>
+              </div>
+            </div>
+
+            <div class="url-example">
+              <strong>Example:</strong> <code>https://roadmapper.rocketstack.co/rocketstack-matt/roadmapper/ffffff/24292f</code>
+              <p style="margin-top: 8px; color: var(--text-secondary); font-size: 14px;">White background (ffffff) with dark text (24292f)</p>
+            </div>
+          </div>
+
+          <h4 style="margin-top: 32px; margin-bottom: 16px; font-size: 18px; color: var(--text-primary);">Choose your embedding method</h4>
+
+          <div class="embed-tabs">
+            <button class="embed-tab active" onclick="showEmbedOption('github')">GitHub README</button>
+            <button class="embed-tab" onclick="showEmbedOption('iframe')">Website (iframe)</button>
+            <button class="embed-tab" onclick="showEmbedOption('html')">HTML Image Map</button>
+          </div>
+
+          <div class="embed-content">
+            <div id="embed-github" class="embed-option active">
+              <p class="embed-description">For GitHub READMEs - Link to the viewer page for clickable cards (GitHub strips interactive elements from embedded images):</p>
+              <div class="code-block"><code>[![Roadmap](https://roadmapper.rocketstack.co/your-username/your-repo/ffffff/24292f)](https://roadmapper.rocketstack.co/view/your-username/your-repo/ffffff/24292f)
 
 > Click the roadmap to view the interactive version with clickable cards.</code></div>
-        </div>
+            </div>
 
-        <div id="embed-iframe" class="embed-option">
-          <p class="embed-description">For websites and documentation - Embed directly with clickable cards using an iframe:</p>
-          <div class="code-block"><code>&lt;iframe src="https://roadmapper.rocketstack.co/embed/your-username/your-repo/ffffff/24292f"
+            <div id="embed-iframe" class="embed-option">
+              <p class="embed-description">For websites and documentation - Embed directly with clickable cards using an iframe:</p>
+              <div class="code-block"><code>&lt;iframe src="https://roadmapper.rocketstack.co/embed/your-username/your-repo/ffffff/24292f"
         width="100%" height="520" frameborder="0"&gt;&lt;/iframe&gt;</code></div>
-        </div>
+            </div>
 
-        <div id="embed-html" class="embed-option">
-          <p class="embed-description">For advanced embedding - Use HTML image maps for direct embedding with clickable regions:</p>
-          <div class="code-block"><code>&lt;!-- Visit the link below to generate the HTML code --&gt;
+            <div id="embed-html" class="embed-option">
+              <p class="embed-description">For advanced embedding - Use HTML image maps for direct embedding with clickable regions:</p>
+              <div class="code-block"><code>&lt;!-- Visit the link below to generate the HTML code --&gt;
 https://roadmapper.rocketstack.co/html/your-username/your-repo/ffffff/24292f</code></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -690,20 +999,20 @@ https://roadmapper.rocketstack.co/html/your-username/your-repo/ffffff/24292f</co
 
         <div class="feature-card">
           <div class="feature-icon">🔄</div>
-          <h3 class="feature-title">Real-time Updates</h3>
-          <p class="feature-description">Roadmap updates automatically when issues change</p>
+          <h3 class="feature-title">Auto Updates</h3>
+          <p class="feature-description">Your roadmap refreshes every 60 minutes — just update your GitHub issue labels and the changes appear automatically</p>
         </div>
 
         <div class="feature-card">
-          <div class="feature-icon">🔓</div>
-          <h3 class="feature-title">No Auth Required</h3>
-          <p class="feature-description">Works with public repositories out of the box</p>
+          <div class="feature-icon">🔑</div>
+          <h3 class="feature-title">Per-Repo Keys</h3>
+          <p class="feature-description">Simple registration proves ownership via a file in your repo</p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon">⚡</div>
-          <h3 class="feature-title">Fast & Serverless</h3>
-          <p class="feature-description">Powered by edge computing for instant loading</p>
+          <h3 class="feature-title">Fast & Cached</h3>
+          <p class="feature-description">Responses cached at the edge for instant loading</p>
         </div>
 
         <div class="feature-card">
@@ -790,6 +1099,88 @@ https://roadmapper.rocketstack.co/html/your-username/your-repo/ffffff/24292f</co
       // Add active state to clicked tab
       event.target.classList.add('active');
     }
+
+    // Registration form handler
+    async function handleRegister(e) {
+      e.preventDefault();
+
+      const btn = document.getElementById('register-btn');
+      const resultDiv = document.getElementById('register-result');
+      const successDiv = document.getElementById('register-success');
+      const errorDiv = document.getElementById('register-error');
+
+      btn.disabled = true;
+      btn.textContent = 'Registering...';
+      resultDiv.style.display = 'none';
+      successDiv.style.display = 'none';
+      errorDiv.style.display = 'none';
+
+      const owner = document.getElementById('reg-owner').value.trim();
+      const repo = document.getElementById('reg-repo').value.trim();
+      const email = document.getElementById('reg-email').value.trim();
+
+      try {
+        const response = await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ owner, repo, email }),
+        });
+
+        const data = await response.json();
+        resultDiv.style.display = 'block';
+
+        if (response.ok) {
+          document.getElementById('api-key-value').textContent = data.key;
+          successDiv.style.display = 'block';
+
+          if (data.pendingConfirmation) {
+            btn.textContent = 'Check your email!';
+            document.querySelector('.key-instructions').innerHTML =
+              '<p><strong>Check your email!</strong> A confirmation link has been sent to your email address.</p>' +
+              '<p>Your key will activate after you click the confirmation link (expires in 24 hours).</p>' +
+              '<p style="margin-top: 12px;">Once confirmed, follow Step 2 below to add this key to your repository.</p>';
+          } else {
+            btn.textContent = 'Registered!';
+            document.querySelector('.key-instructions').innerHTML =
+              '<p><strong>Save this key now</strong> — it will not be shown again.</p>' +
+              '<p>Next, follow Step 2 below to add this key to your repository.</p>';
+          }
+
+          // Update Step 2 command with the actual key
+          const step2 = document.getElementById('step2-command');
+          step2.textContent = 'echo "' + data.key + '" > .roadmapper && git add .roadmapper && git commit -m "Add Roadmapper key" && git push';
+        } else {
+          document.getElementById('register-error-msg').textContent = data.error || 'Registration failed';
+          errorDiv.style.display = 'block';
+          btn.disabled = false;
+          btn.textContent = 'Register';
+        }
+      } catch (err) {
+        resultDiv.style.display = 'block';
+        document.getElementById('register-error-msg').textContent = 'Network error. Please try again.';
+        errorDiv.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Register';
+      }
+    }
+
+    function copyKey() {
+      const key = document.getElementById('api-key-value').textContent;
+      navigator.clipboard.writeText(key).then(() => {
+        const btn = document.querySelector('.copy-key-btn');
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+      });
+    }
+
+    function copyStep2Command() {
+      const command = document.getElementById('step2-command').textContent;
+      navigator.clipboard.writeText(command).then(() => {
+        const btn = document.getElementById('step2-copy-btn');
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+      });
+    }
   </script>
 </body>
 </html>
@@ -798,3 +1189,5 @@ https://roadmapper.rocketstack.co/html/your-username/your-repo/ffffff/24292f</co
   res.setHeader('Content-Type', 'text/html');
   res.send(html);
 };
+
+module.exports = withMiddleware(handler, { skipAll: true });

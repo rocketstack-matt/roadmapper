@@ -9,8 +9,8 @@ const createMockIssue = (number, title, labelName, labelColor) => ({
 
 const mockIssues = [
   createMockIssue(1, 'Feature A', 'Roadmap: Now', '2da44e'),
-  createMockIssue(2, 'Feature B', 'Roadmap: Later', 'fb8500'),
-  createMockIssue(3, 'Feature C', 'Roadmap: Future', '8b949e'),
+  createMockIssue(2, 'Feature B', 'Roadmap: Next', 'fb8500'),
+  createMockIssue(3, 'Feature C', 'Roadmap: Later', '8b949e'),
 ];
 
 const createMockReq = (url, headers = {}) => ({

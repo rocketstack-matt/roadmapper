@@ -50,8 +50,8 @@ describe('api/index', () => {
     await indexHandler(req, res);
 
     expect(res.body).toContain('Roadmap: Now');
+    expect(res.body).toContain('Roadmap: Next');
     expect(res.body).toContain('Roadmap: Later');
-    expect(res.body).toContain('Roadmap: Future');
   });
 
   test('includes live example with embedded iframe', async () => {
@@ -72,7 +72,7 @@ describe('api/index', () => {
 
     await indexHandler(req, res);
 
-    expect(res.body).toContain('Your Roadmap URL');
+    expect(res.body).toContain('Embed your roadmap');
     expect(res.body).toContain('{owner}');
     expect(res.body).toContain('{repo}');
     expect(res.body).toContain('{bgColor}');
@@ -111,9 +111,9 @@ describe('api/index', () => {
     expect(res.body).toContain('Features');
     expect(res.body).toContain('Clean Design');
     expect(res.body).toContain('Label Colors');
-    expect(res.body).toContain('Real-time Updates');
-    expect(res.body).toContain('No Auth Required');
-    expect(res.body).toContain('Fast & Serverless');
+    expect(res.body).toContain('Auto Updates');
+    expect(res.body).toContain('Per-Repo Keys');
+    expect(res.body).toContain('Fast & Cached');
     expect(res.body).toContain('Clickable Cards');
   });
 

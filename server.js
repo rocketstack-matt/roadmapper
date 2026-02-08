@@ -7,9 +7,14 @@ const indexHandler = require('./api/index');
 const viewHandler = require('./api/view');
 const embedHandler = require('./api/embed');
 const htmlHandler = require('./api/html');
+const registerHandler = require('./api/register');
+const confirmHandler = require('./api/confirm');
 
 const app = express();
 const PORT = process.env.PORT || 5002;
+
+// Parse JSON bodies for registration endpoint
+app.use(express.json());
 
 // Serve static files from public directory
 app.use(express.static('public'));
@@ -17,6 +22,16 @@ app.use(express.static('public'));
 // Landing page
 app.get('/', async (req, res) => {
     await indexHandler(req, res);
+});
+
+// Registration endpoint
+app.post('/api/register', async (req, res) => {
+    await registerHandler(req, res);
+});
+
+// Email confirmation endpoint
+app.get('/api/confirm', async (req, res) => {
+    await confirmHandler(req, res);
 });
 
 // View page handler
@@ -82,4 +97,3 @@ app.listen(PORT, () => {
     console.log(`Roadmap API: http://localhost:${PORT}/{owner}/{repo}/{bgColor}/{textColor}`);
     console.log(`Example: http://localhost:${PORT}/rocketstack-matt/roadmapper/ffffff/24292f`);
 });
-

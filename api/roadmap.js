@@ -1,15 +1,16 @@
 const { generateRoadmapSVG, fetchIssues } = require('../roadmap');
+const { withMiddleware } = require('../lib/middleware');
 
-module.exports = async (req, res) => {
+const handler = async (req, res) => {
   // Extract the path from the URL
   const url = req.url;
 
   // Try to match 4-parameter format first
-  let match = url.match(/^\/([^/]+)\/([^/]+)\/([^/]+)\/([^/]+)\/?/);
+  let match = url.match(/^\/([^/?]+)\/([^/?]+)\/([^/?]+)\/([^/?]+)\/?/);
 
   // If no match, check for 2-parameter format and redirect to defaults
   if (!match) {
-    const fallbackMatch = url.match(/^\/([^/]+)\/([^/]+)\/?$/);
+    const fallbackMatch = url.match(/^\/([^/?]+)\/([^/?]+)\/?$/);
     if (fallbackMatch) {
       const owner = fallbackMatch[1];
       const repo = fallbackMatch[2];
@@ -28,7 +29,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const issues = await fetchIssues(owner, repo);
+    const issues = await fetchIssues(owner, repo, req.cacheTtl);
     const svgContent = generateRoadmapSVG(issues, bgColor, textColor);
 
     res.setHeader('Content-Type', 'image/svg+xml');
@@ -37,3 +38,5 @@ module.exports = async (req, res) => {
     res.status(500).send('Error fetching GitHub issues');
   }
 };
+
+module.exports = withMiddleware(handler);

@@ -83,9 +83,9 @@ describe('api/html', () => {
 
     // Now column (index 0): x1=15, y1=130, x2=365, y2=205
     expect(res.body).toContain('coords="15,130,365,205"');
-    // Later column (index 1): x1=395, y1=130, x2=745, y2=205
+    // Next column (index 1): x1=395, y1=130, x2=745, y2=205
     expect(res.body).toContain('coords="395,130,745,205"');
-    // Future column (index 2): x1=775, y1=130, x2=1125, y2=205
+    // Later column (index 2): x1=775, y1=130, x2=1125, y2=205
     expect(res.body).toContain('coords="775,130,1125,205"');
   });
 

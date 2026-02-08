@@ -1,11 +1,13 @@
-module.exports = async (req, res) => {
+const { withMiddleware } = require('../lib/middleware');
+
+const handler = async (req, res) => {
   // Extract the path from the URL
   const url = req.url;
-  let match = url.match(/\/view\/([^/]+)\/([^/]+)\/([^/]+)\/([^/]+)\/?/);
+  let match = url.match(/\/view\/([^/?]+)\/([^/?]+)\/([^/?]+)\/([^/?]+)\/?/);
 
   // If no match, check for 2-parameter format and redirect to defaults
   if (!match) {
-    const fallbackMatch = url.match(/\/view\/([^/]+)\/([^/]+)\/?$/);
+    const fallbackMatch = url.match(/\/view\/([^/?]+)\/([^/?]+)\/?$/);
     if (fallbackMatch) {
       const owner = fallbackMatch[1];
       const repo = fallbackMatch[2];
@@ -245,3 +247,5 @@ module.exports = async (req, res) => {
   res.setHeader('Content-Type', 'text/html');
   res.send(html);
 };
+
+module.exports = withMiddleware(handler);
