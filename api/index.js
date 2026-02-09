@@ -861,7 +861,7 @@ const handler = async (req, res) => {
       <h2 class="section-title">Live Example</h2>
       <p class="section-description">Click on any card to view the issue on GitHub</p>
       <div class="example-container">
-        <iframe id="roadmap-iframe" src="${baseUrl}/embed/rocketstack-matt/roadmapper/ffffff/24292f" width="100%" height="520" frameborder="0" style="border: none; border-radius: 8px;"></iframe>
+        <iframe id="roadmap-iframe" src="${baseUrl}/embed/rocketstack-matt/roadmapper/ffffff/24292f" width="100%" height="520" frameborder="0" style="border: none; border-radius: 8px; transition: height 0.3s ease;"></iframe>
       </div>
     </div>
   </section>
@@ -1121,6 +1121,16 @@ https://roadmapper.rocketstack.co/html/your-username/your-repo/ffffff/24292f</co
     document.documentElement.setAttribute('data-theme', savedTheme);
     updateThemeButton(savedTheme);
     updateRoadmapTheme(savedTheme);
+
+    // Auto-resize roadmap iframe to match SVG content height
+    window.addEventListener('message', function(e) {
+      if (e.data && e.data.type === 'roadmap-resize' && e.data.height > 0) {
+        var iframe = document.getElementById('roadmap-iframe');
+        if (iframe) {
+          iframe.style.height = e.data.height + 'px';
+        }
+      }
+    });
 
     // Handle confirmation query params on page load
     function escapeHtml(str) {

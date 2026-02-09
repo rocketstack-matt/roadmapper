@@ -168,4 +168,16 @@ describe('api/embed', () => {
 
     expect(res.headers['Content-Type']).toBe('text/html');
   });
+
+  test('includes postMessage script for parent iframe resizing', async () => {
+    const req = createMockReq('/embed/owner/repo/ffffff/24292f');
+    const res = createMockRes();
+
+    await embedHandler(req, res);
+
+    expect(res.body).toContain('function sendSize()');
+    expect(res.body).toContain("postMessage");
+    expect(res.body).toContain("'roadmap-resize'");
+    expect(res.body).toContain('img.offsetHeight');
+  });
 });

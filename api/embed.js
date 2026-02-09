@@ -86,6 +86,20 @@ const handler = async (req, res) => {
   <map name="roadmap">
     ${mapAreas}
   </map>
+  <script>
+    var img = document.querySelector('img');
+    function sendSize() {
+      if (window.parent !== window && img.offsetHeight > 0) {
+        window.parent.postMessage({
+          type: 'roadmap-resize',
+          height: img.offsetHeight
+        }, '*');
+      }
+    }
+    if (img.complete) sendSize();
+    else img.addEventListener('load', sendSize);
+    window.addEventListener('resize', sendSize);
+  </script>
 </body>
 </html>`;
 
