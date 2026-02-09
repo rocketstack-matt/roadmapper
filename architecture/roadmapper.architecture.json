@@ -1,0 +1,664 @@
+{
+    "$schema": "https://calm.finos.org/release/1.1/meta/calm.json",
+    "unique-id": "roadmapper",
+    "name": "Roadmapper",
+    "description": "Transform GitHub issues into visual SVG roadmaps, served via Vercel serverless functions with Redis caching and email-based registration",
+    "metadata": {
+        "version": "1.0.0",
+        "created-by": "Architecture Team",
+        "created-date": "2026-02-09",
+        "license": "Apache-2.0",
+        "repository": "https://github.com/rocketstack-matt/roadmapper",
+        "hosting": "Vercel",
+        "runtime": "Node.js",
+        "framework": "Express.js"
+    },
+    "nodes": [
+        {
+            "unique-id": "user",
+            "node-type": "actor",
+            "name": "User",
+            "description": "Developers and project managers who embed roadmaps in their documentation and repositories"
+        },
+        {
+            "unique-id": "roadmapper-system",
+            "node-type": "system",
+            "name": "Roadmapper System",
+            "description": "Complete roadmap generation and embedding system including all serverless functions and services"
+        },
+        {
+            "unique-id": "landing-page",
+            "node-type": "service",
+            "name": "Landing Page",
+            "description": "Marketing landing page with features showcase, registration form, and embedding instructions",
+            "interfaces": [
+                {
+                    "unique-id": "landing-endpoint",
+                    "host": "roadmapper.rocketstack.co",
+                    "port": 443
+                }
+            ],
+            "controls": {
+                "input-validation": {
+                    "description": "Validates registration form inputs",
+                    "requirements": [
+                        {
+                            "requirement-url": "architecture/controls/input-validation.control.json",
+                            "config": {
+                                "scope": "registration-form",
+                                "validations": ["email-format", "owner-format", "repo-format"]
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "unique-id": "svg-generator",
+            "node-type": "service",
+            "name": "SVG Roadmap Generator",
+            "description": "Core service that fetches GitHub issues and renders them as SVG roadmaps with customizable colors",
+            "interfaces": [
+                {
+                    "unique-id": "svg-endpoint",
+                    "host": "roadmapper.rocketstack.co",
+                    "port": 443
+                }
+            ],
+            "controls": {
+                "rate-limiting": {
+                    "description": "Enforces rate limits on roadmap generation",
+                    "requirements": [
+                        {
+                            "requirement-url": "architecture/controls/rate-limiting.control.json",
+                            "config": {
+                                "scope": "per-repo-and-per-ip"
+                            }
+                        }
+                    ]
+                },
+                "api-key-authentication": {
+                    "description": "Verifies API key via .roadmapper file",
+                    "requirements": [
+                        {
+                            "requirement-url": "architecture/controls/api-key-authentication.control.json",
+                            "config": {
+                                "verification-method": "github-contents-api"
+                            }
+                        }
+                    ]
+                },
+                "input-validation": {
+                    "description": "Validates hex color parameters",
+                    "requirements": [
+                        {
+                            "requirement-url": "architecture/controls/input-validation.control.json",
+                            "config": {
+                                "validations": ["hex-color-format"]
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "unique-id": "interactive-viewer",
+            "node-type": "service",
+            "name": "Interactive Viewer",
+            "description": "Full HTML page that embeds the roadmap SVG with clickable links to GitHub issues",
+            "interfaces": [
+                {
+                    "unique-id": "view-endpoint",
+                    "host": "roadmapper.rocketstack.co",
+                    "port": 443
+                }
+            ]
+        },
+        {
+            "unique-id": "embed-service",
+            "node-type": "service",
+            "name": "Embed Service",
+            "description": "Iframe-embeddable page with HTML image maps for clickable roadmap cards",
+            "interfaces": [
+                {
+                    "unique-id": "embed-endpoint",
+                    "host": "roadmapper.rocketstack.co",
+                    "port": 443
+                }
+            ]
+        },
+        {
+            "unique-id": "html-generator",
+            "node-type": "service",
+            "name": "HTML Code Generator",
+            "description": "Generates embeddable HTML snippets with inline roadmap data for documentation sites",
+            "interfaces": [
+                {
+                    "unique-id": "html-endpoint",
+                    "host": "roadmapper.rocketstack.co",
+                    "port": 443
+                }
+            ]
+        },
+        {
+            "unique-id": "registration-service",
+            "node-type": "service",
+            "name": "Registration Service",
+            "description": "Handles API key registration requests, validates GitHub repositories, generates keys, and triggers confirmation emails",
+            "interfaces": [
+                {
+                    "unique-id": "register-endpoint",
+                    "host": "roadmapper.rocketstack.co",
+                    "port": 443
+                }
+            ],
+            "controls": {
+                "input-validation": {
+                    "description": "Validates registration inputs",
+                    "requirements": [
+                        {
+                            "requirement-url": "architecture/controls/input-validation.control.json",
+                            "config": {
+                                "scope": "registration-inputs",
+                                "validations": ["email-format", "owner-format", "repo-format"]
+                            }
+                        }
+                    ]
+                },
+                "email-verification": {
+                    "description": "Sends verification email on registration",
+                    "requirements": [
+                        {
+                            "requirement-url": "architecture/controls/email-verification.control.json",
+                            "config": {
+                                "token-expiry": "24h"
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "unique-id": "confirmation-service",
+            "node-type": "service",
+            "name": "Email Confirmation Service",
+            "description": "Processes email confirmation links and activates API keys in Redis",
+            "interfaces": [
+                {
+                    "unique-id": "confirm-endpoint",
+                    "host": "roadmapper.rocketstack.co",
+                    "port": 443
+                }
+            ],
+            "controls": {
+                "email-verification": {
+                    "description": "Validates confirmation tokens with 24h expiry",
+                    "requirements": [
+                        {
+                            "requirement-url": "architecture/controls/email-verification.control.json",
+                            "config": {
+                                "token-expiry": "24h",
+                                "action": "activate-api-key"
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "unique-id": "middleware",
+            "node-type": "service",
+            "name": "Request Middleware",
+            "description": "Orchestrates verification, caching, and rate limiting for all roadmap requests",
+            "controls": {
+                "rate-limiting": {
+                    "description": "Enforces per-repo and per-IP rate limits",
+                    "requirements": [
+                        {
+                            "requirement-url": "architecture/controls/rate-limiting.control.json",
+                            "config": {
+                                "scope": "per-repo-and-per-ip"
+                            }
+                        }
+                    ]
+                },
+                "api-key-authentication": {
+                    "description": "Verifies API keys via .roadmapper file",
+                    "requirements": [
+                        {
+                            "requirement-url": "architecture/controls/api-key-authentication.control.json",
+                            "config": {
+                                "verification-method": "github-contents-api"
+                            }
+                        }
+                    ]
+                },
+                "tiered-access": {
+                    "description": "Applies tier-based cache and rate limit policies",
+                    "requirements": [
+                        {
+                            "requirement-url": "architecture/controls/tiered-access.control.json",
+                            "config": {
+                                "tiers": ["free", "pro"]
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "unique-id": "redis-store",
+            "node-type": "database",
+            "name": "Upstash Redis",
+            "description": "Cloud Redis database for API key storage, response caching, and rate limiting state",
+            "interfaces": [
+                {
+                    "unique-id": "redis-interface",
+                    "host": "upstash.io",
+                    "port": 443
+                }
+            ]
+        },
+        {
+            "unique-id": "github-api",
+            "node-type": "service",
+            "name": "GitHub API",
+            "description": "External GitHub REST API for fetching repository issues and verifying .roadmapper file",
+            "interfaces": [
+                {
+                    "unique-id": "github-issues-api",
+                    "host": "api.github.com",
+                    "port": 443
+                },
+                {
+                    "unique-id": "github-contents-api",
+                    "host": "api.github.com",
+                    "port": 443
+                }
+            ]
+        },
+        {
+            "unique-id": "email-service",
+            "node-type": "service",
+            "name": "Resend Email Service",
+            "description": "External email delivery service for sending confirmation emails",
+            "interfaces": [
+                {
+                    "unique-id": "email-send-api",
+                    "host": "api.resend.com",
+                    "port": 443
+                }
+            ]
+        },
+        {
+            "unique-id": "vercel-platform",
+            "node-type": "platform",
+            "name": "Vercel Platform",
+            "description": "Serverless hosting platform for all Roadmapper functions and static assets"
+        }
+    ],
+    "relationships": [
+        {
+            "unique-id": "user-views-landing",
+            "description": "User visits the landing page to learn about Roadmapper and register",
+            "relationship-type": {
+                "interacts": {
+                    "actor": "user",
+                    "nodes": ["landing-page"]
+                }
+            },
+            "protocol": "HTTPS"
+        },
+        {
+            "unique-id": "user-views-roadmap",
+            "description": "User or browser requests SVG roadmap image",
+            "relationship-type": {
+                "interacts": {
+                    "actor": "user",
+                    "nodes": ["svg-generator"]
+                }
+            },
+            "protocol": "HTTPS"
+        },
+        {
+            "unique-id": "user-views-viewer",
+            "description": "User opens interactive viewer page with clickable roadmap",
+            "relationship-type": {
+                "interacts": {
+                    "actor": "user",
+                    "nodes": ["interactive-viewer"]
+                }
+            },
+            "protocol": "HTTPS"
+        },
+        {
+            "unique-id": "user-views-embed",
+            "description": "User loads embedded roadmap in iframe",
+            "relationship-type": {
+                "interacts": {
+                    "actor": "user",
+                    "nodes": ["embed-service"]
+                }
+            },
+            "protocol": "HTTPS"
+        },
+        {
+            "unique-id": "user-gets-html",
+            "description": "User generates HTML embed code",
+            "relationship-type": {
+                "interacts": {
+                    "actor": "user",
+                    "nodes": ["html-generator"]
+                }
+            },
+            "protocol": "HTTPS"
+        },
+        {
+            "unique-id": "user-registers",
+            "description": "User submits registration form with owner, repo, and email",
+            "relationship-type": {
+                "interacts": {
+                    "actor": "user",
+                    "nodes": ["registration-service"]
+                }
+            },
+            "protocol": "HTTPS"
+        },
+        {
+            "unique-id": "user-confirms",
+            "description": "User clicks email confirmation link",
+            "relationship-type": {
+                "interacts": {
+                    "actor": "user",
+                    "nodes": ["confirmation-service"]
+                }
+            },
+            "protocol": "HTTPS"
+        },
+        {
+            "unique-id": "svg-to-github",
+            "description": "SVG generator fetches issues from GitHub API",
+            "relationship-type": {
+                "connects": {
+                    "source": {
+                        "node": "svg-generator",
+                        "interface": "svg-endpoint"
+                    },
+                    "destination": {
+                        "node": "github-api",
+                        "interface": "github-issues-api"
+                    }
+                }
+            },
+            "protocol": "HTTPS"
+        },
+        {
+            "unique-id": "viewer-to-embed",
+            "description": "Interactive viewer embeds the embed service via iframe",
+            "relationship-type": {
+                "connects": {
+                    "source": {
+                        "node": "interactive-viewer",
+                        "interface": "view-endpoint"
+                    },
+                    "destination": {
+                        "node": "embed-service",
+                        "interface": "embed-endpoint"
+                    }
+                }
+            },
+            "protocol": "HTTPS"
+        },
+        {
+            "unique-id": "register-to-redis",
+            "description": "Registration service stores API keys and registration data",
+            "relationship-type": {
+                "connects": {
+                    "source": {
+                        "node": "registration-service",
+                        "interface": "register-endpoint"
+                    },
+                    "destination": {
+                        "node": "redis-store",
+                        "interface": "redis-interface"
+                    }
+                }
+            },
+            "protocol": "HTTPS"
+        },
+        {
+            "unique-id": "register-to-email",
+            "description": "Registration service sends confirmation email via Resend",
+            "relationship-type": {
+                "connects": {
+                    "source": {
+                        "node": "registration-service",
+                        "interface": "register-endpoint"
+                    },
+                    "destination": {
+                        "node": "email-service",
+                        "interface": "email-send-api"
+                    }
+                }
+            },
+            "protocol": "HTTPS"
+        },
+        {
+            "unique-id": "register-to-github",
+            "description": "Registration service verifies GitHub repository exists",
+            "relationship-type": {
+                "connects": {
+                    "source": {
+                        "node": "registration-service",
+                        "interface": "register-endpoint"
+                    },
+                    "destination": {
+                        "node": "github-api",
+                        "interface": "github-issues-api"
+                    }
+                }
+            },
+            "protocol": "HTTPS"
+        },
+        {
+            "unique-id": "confirm-to-redis",
+            "description": "Confirmation service activates API key in Redis",
+            "relationship-type": {
+                "connects": {
+                    "source": {
+                        "node": "confirmation-service",
+                        "interface": "confirm-endpoint"
+                    },
+                    "destination": {
+                        "node": "redis-store",
+                        "interface": "redis-interface"
+                    }
+                }
+            },
+            "protocol": "HTTPS"
+        },
+        {
+            "unique-id": "middleware-to-redis",
+            "description": "Middleware performs cache lookups, rate limiting, and key verification",
+            "relationship-type": {
+                "connects": {
+                    "source": {
+                        "node": "middleware"
+                    },
+                    "destination": {
+                        "node": "redis-store",
+                        "interface": "redis-interface"
+                    }
+                }
+            },
+            "protocol": "HTTPS"
+        },
+        {
+            "unique-id": "middleware-to-github",
+            "description": "Middleware verifies .roadmapper file in repository",
+            "relationship-type": {
+                "connects": {
+                    "source": {
+                        "node": "middleware"
+                    },
+                    "destination": {
+                        "node": "github-api",
+                        "interface": "github-contents-api"
+                    }
+                }
+            },
+            "protocol": "HTTPS"
+        },
+        {
+            "unique-id": "svg-uses-middleware",
+            "description": "SVG generator uses middleware for verification and caching",
+            "relationship-type": {
+                "connects": {
+                    "source": {
+                        "node": "svg-generator"
+                    },
+                    "destination": {
+                        "node": "middleware"
+                    }
+                }
+            }
+        },
+        {
+            "unique-id": "system-composition",
+            "description": "Roadmapper system is composed of all internal services",
+            "relationship-type": {
+                "composed-of": {
+                    "container": "roadmapper-system",
+                    "nodes": [
+                        "landing-page",
+                        "svg-generator",
+                        "interactive-viewer",
+                        "embed-service",
+                        "html-generator",
+                        "registration-service",
+                        "confirmation-service",
+                        "middleware",
+                        "redis-store"
+                    ]
+                }
+            }
+        },
+        {
+            "unique-id": "services-deployed-in-vercel",
+            "description": "All services are deployed as Vercel serverless functions",
+            "relationship-type": {
+                "deployed-in": {
+                    "container": "vercel-platform",
+                    "nodes": [
+                        "landing-page",
+                        "svg-generator",
+                        "interactive-viewer",
+                        "embed-service",
+                        "html-generator",
+                        "registration-service",
+                        "confirmation-service",
+                        "middleware"
+                    ]
+                }
+            }
+        }
+    ],
+    "flows": [
+        {
+            "unique-id": "registration-flow",
+            "name": "User Registration Flow",
+            "description": "Complete flow for user registration, email verification, and API key activation",
+            "transitions": [
+                {
+                    "relationship-unique-id": "user-registers",
+                    "sequence-number": 1,
+                    "description": "User submits registration form with owner, repo, and email"
+                },
+                {
+                    "relationship-unique-id": "register-to-github",
+                    "sequence-number": 2,
+                    "description": "Registration service validates GitHub repository exists"
+                },
+                {
+                    "relationship-unique-id": "register-to-redis",
+                    "sequence-number": 3,
+                    "description": "Registration service generates and stores API key in Redis"
+                },
+                {
+                    "relationship-unique-id": "register-to-email",
+                    "sequence-number": 4,
+                    "description": "Registration service sends confirmation email via Resend"
+                },
+                {
+                    "relationship-unique-id": "user-confirms",
+                    "sequence-number": 5,
+                    "description": "User clicks confirmation link in email"
+                },
+                {
+                    "relationship-unique-id": "confirm-to-redis",
+                    "sequence-number": 6,
+                    "description": "Confirmation service activates API key in Redis"
+                }
+            ]
+        },
+        {
+            "unique-id": "roadmap-generation-flow",
+            "name": "Roadmap Generation Flow",
+            "description": "Flow for generating and returning a roadmap SVG with caching and verification",
+            "transitions": [
+                {
+                    "relationship-unique-id": "user-views-roadmap",
+                    "sequence-number": 1,
+                    "description": "User or browser requests roadmap SVG"
+                },
+                {
+                    "relationship-unique-id": "svg-uses-middleware",
+                    "sequence-number": 2,
+                    "description": "Request passes through middleware"
+                },
+                {
+                    "relationship-unique-id": "middleware-to-redis",
+                    "sequence-number": 3,
+                    "description": "Middleware checks rate limit and cache in Redis"
+                },
+                {
+                    "relationship-unique-id": "middleware-to-github",
+                    "sequence-number": 4,
+                    "description": "Middleware verifies API key via .roadmapper file"
+                },
+                {
+                    "relationship-unique-id": "svg-to-github",
+                    "sequence-number": 5,
+                    "description": "SVG generator fetches issues from GitHub"
+                },
+                {
+                    "relationship-unique-id": "middleware-to-redis",
+                    "sequence-number": 6,
+                    "description": "Generated SVG is cached in Redis"
+                }
+            ]
+        },
+        {
+            "unique-id": "interactive-viewing-flow",
+            "name": "Interactive Viewing Flow",
+            "description": "Flow for loading interactive viewer with clickable roadmap cards",
+            "transitions": [
+                {
+                    "relationship-unique-id": "user-views-viewer",
+                    "sequence-number": 1,
+                    "description": "User opens interactive viewer page"
+                },
+                {
+                    "relationship-unique-id": "viewer-to-embed",
+                    "sequence-number": 2,
+                    "description": "Viewer page loads embed service in iframe"
+                },
+                {
+                    "relationship-unique-id": "user-views-embed",
+                    "sequence-number": 3,
+                    "description": "Embed service triggers roadmap generation"
+                }
+            ]
+        }
+    ]
+}

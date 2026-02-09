@@ -1,0 +1,23 @@
+{
+    "$schema": "https://calm.finos.org/release/1.1/meta/calm.json",
+    "unique-id": "tiered-access-control",
+    "name": "Tiered Access Control",
+    "description": "Free and Pro tier access with different cache TTLs and rate limits",
+    "control-requirement": {
+        "unique-id": "tiered-access-requirement",
+        "description": "System must support different service tiers with varying resource allocations",
+        "source": "business-policy",
+        "metadata": {
+            "implementation": "lib/tiers.js tier configuration",
+            "tiers": ["free", "pro"],
+            "free-tier": {
+                "cache-ttl": "3600",
+                "rate-limit": "standard"
+            },
+            "pro-tier": {
+                "cache-ttl": "1800",
+                "rate-limit": "enhanced"
+            }
+        }
+    }
+}

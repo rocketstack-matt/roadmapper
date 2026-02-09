@@ -1,0 +1,16 @@
+{
+    "$schema": "https://calm.finos.org/release/1.1/meta/calm.json",
+    "unique-id": "email-verification-control",
+    "name": "Email Verification Control",
+    "description": "Double opt-in email verification with 24-hour token expiry for registration",
+    "control-requirement": {
+        "unique-id": "email-verification-requirement",
+        "description": "System must verify user email addresses before activating API keys",
+        "source": "security-policy",
+        "metadata": {
+            "implementation": "Email confirmation link with time-limited token",
+            "token-expiry": "24 hours",
+            "service": "Resend email service"
+        }
+    }
+}

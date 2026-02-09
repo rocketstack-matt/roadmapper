@@ -1,0 +1,16 @@
+{
+    "$schema": "https://calm.finos.org/release/1.1/meta/calm.json",
+    "unique-id": "api-key-authentication-control",
+    "name": "API Key Authentication Control",
+    "description": "Repository ownership verification via .roadmapper file containing valid API key",
+    "control-requirement": {
+        "unique-id": "api-key-authentication-requirement",
+        "description": "System must verify repository ownership before generating roadmaps",
+        "source": "security-policy",
+        "metadata": {
+            "implementation": "GitHub API verification of .roadmapper file",
+            "verification-file": ".roadmapper",
+            "storage": "Redis with SHA-256 hashed keys"
+        }
+    }
+}

@@ -1,0 +1,16 @@
+{
+    "$schema": "https://calm.finos.org/release/1.1/meta/calm.json",
+    "unique-id": "rate-limiting-control",
+    "name": "Rate Limiting Control",
+    "description": "Per-repository and per-IP rate limiting to prevent abuse and ensure fair usage",
+    "control-requirement": {
+        "unique-id": "rate-limiting-requirement",
+        "description": "System must implement rate limiting to prevent abuse and ensure service availability",
+        "source": "operational-policy",
+        "metadata": {
+            "implementation": "Upstash rate limiter",
+            "scope": "per-repo and per-IP",
+            "monitoring": "Rate limit events logged"
+        }
+    }
+}

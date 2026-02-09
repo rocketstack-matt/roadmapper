@@ -1,0 +1,16 @@
+{
+    "$schema": "https://calm.finos.org/release/1.1/meta/calm.json",
+    "unique-id": "input-validation-control",
+    "name": "Input Validation Control",
+    "description": "Validation and sanitization of all user inputs including hex colors and URL parameters",
+    "control-requirement": {
+        "unique-id": "input-validation-requirement",
+        "description": "System must validate and sanitize all user inputs to prevent injection attacks",
+        "source": "security-policy",
+        "metadata": {
+            "implementation": "Hex color validation, URL parameter sanitization",
+            "validations": ["hex-color-format", "url-parameter-regex", "email-format"],
+            "default-fallback": "ffffff/24292f for invalid colors"
+        }
+    }
+}
