@@ -6,7 +6,7 @@ describe('lib/tiers', () => {
   });
 
   test('defines free tier with rate limit config', () => {
-    expect(TIERS.free.rateLimit.requests).toBe(60);
+    expect(TIERS.free.rateLimit.requests).toBe(1000);
     expect(TIERS.free.rateLimit.window).toBe('1h');
   });
 
@@ -23,7 +23,7 @@ describe('lib/tiers', () => {
   });
 
   test('IP rate limit is defined', () => {
-    expect(IP_RATE_LIMIT.requests).toBe(200);
+    expect(IP_RATE_LIMIT.requests).toBe(2000);
     expect(IP_RATE_LIMIT.window).toBe('1h');
   });
 
