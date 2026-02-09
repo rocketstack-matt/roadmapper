@@ -197,4 +197,69 @@ describe('api/index', () => {
 
     expect(res.body).toContain('@media (max-width: 768px)');
   });
+
+  test('includes steps-2-3 wrapper div', async () => {
+    const req = createMockReq('/');
+    const res = createMockRes();
+
+    await indexHandler(req, res);
+
+    expect(res.body).toContain('id="steps-2-3"');
+  });
+
+  test('includes onPageLoad function for confirmation handling', async () => {
+    const req = createMockReq('/');
+    const res = createMockRes();
+
+    await indexHandler(req, res);
+
+    expect(res.body).toContain('function onPageLoad()');
+    expect(res.body).toContain('onPageLoad()');
+  });
+
+  test('onPageLoad checks for confirmation query params', async () => {
+    const req = createMockReq('/');
+    const res = createMockRes();
+
+    await indexHandler(req, res);
+
+    expect(res.body).toContain("params.get('confirmed')");
+    expect(res.body).toContain("params.get('confirm_error')");
+  });
+
+  test('onPageLoad cleans URL with history.replaceState', async () => {
+    const req = createMockReq('/');
+    const res = createMockRes();
+
+    await indexHandler(req, res);
+
+    expect(res.body).toContain("history.replaceState(null, '', '/')");
+  });
+
+  test('includes CSS for confirmation banner', async () => {
+    const req = createMockReq('/');
+    const res = createMockRes();
+
+    await indexHandler(req, res);
+
+    expect(res.body).toContain('.result-confirmed');
+  });
+
+  test('steps 2-3 are hidden by default', async () => {
+    const req = createMockReq('/');
+    const res = createMockRes();
+
+    await indexHandler(req, res);
+
+    expect(res.body).toContain('id="steps-2-3" style="display: none;"');
+  });
+
+  test('handleRegister shows steps 2-3 when no pending confirmation', async () => {
+    const req = createMockReq('/');
+    const res = createMockRes();
+
+    await indexHandler(req, res);
+
+    expect(res.body).toContain("getElementById('steps-2-3')");
+  });
 });

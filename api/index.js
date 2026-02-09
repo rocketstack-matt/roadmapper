@@ -260,7 +260,6 @@ const handler = async (req, res) => {
       border: 1px solid var(--border-color);
       border-radius: 8px;
       padding: 24px;
-      overflow-x: auto;
       font-family: 'Monaco', 'Menlo', monospace;
       font-size: 14px;
       line-height: 1.8;
@@ -269,7 +268,8 @@ const handler = async (req, res) => {
     }
 
     .code-block code {
-      white-space: pre;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
     }
 
     /* URL Format Box */
@@ -721,6 +721,36 @@ const handler = async (req, res) => {
       color: #d9a3a3;
     }
 
+    .result-confirmed {
+      margin-top: 24px;
+      padding: 20px;
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      border-radius: 8px;
+      color: #155724;
+      text-align: center;
+    }
+
+    [data-theme="dark"] .result-confirmed {
+      background: #1a3a1a;
+      border-color: #2d5a2d;
+      color: #a3d9a5;
+    }
+
+    .result-confirmed .confirm-icon {
+      font-size: 36px;
+      margin-bottom: 8px;
+    }
+
+    .result-confirmed h3 {
+      margin: 0 0 8px 0;
+    }
+
+    .result-confirmed p {
+      margin: 0;
+      font-size: 14px;
+    }
+
     /* Footer */
     .footer {
       border-top: 1px solid var(--border-color);
@@ -840,7 +870,7 @@ const handler = async (req, res) => {
   <section class="section" id="get-started">
     <div class="container">
       <h2 class="section-title">Get Started</h2>
-      <p class="section-description">Three steps to get your roadmap live</p>
+      <p class="section-description">Register and confirm your email, then we'll show you how to add your key and embed your roadmap</p>
 
       <!-- Step 1: Register -->
       <div class="step-section">
@@ -854,11 +884,11 @@ const handler = async (req, res) => {
               <div class="form-row">
                 <div class="form-group">
                   <label for="reg-owner">GitHub Owner</label>
-                  <input type="text" id="reg-owner" placeholder="e.g. facebook" required>
+                  <input type="text" id="reg-owner" placeholder="e.g. finos" required>
                 </div>
                 <div class="form-group">
                   <label for="reg-repo">Repository</label>
-                  <input type="text" id="reg-repo" placeholder="e.g. react" required>
+                  <input type="text" id="reg-repo" placeholder="e.g. architecture-as-code" required>
                 </div>
                 <div class="form-group">
                   <label for="reg-email">Email</label>
@@ -892,6 +922,7 @@ const handler = async (req, res) => {
         </div>
       </div>
 
+      <div id="steps-2-3" style="display: none;">
       <!-- Step 2: Add key to repo -->
       <div class="step-section">
         <span class="step-number">2</span>
@@ -957,24 +988,34 @@ const handler = async (req, res) => {
           <div class="embed-content">
             <div id="embed-github" class="embed-option active">
               <p class="embed-description">For GitHub READMEs - Link to the viewer page for clickable cards (GitHub strips interactive elements from embedded images):</p>
-              <div class="code-block"><code>[![Roadmap](https://roadmapper.rocketstack.co/your-username/your-repo/ffffff/24292f)](https://roadmapper.rocketstack.co/view/your-username/your-repo/ffffff/24292f)
+              <div class="code-block" style="display: flex; align-items: flex-start; gap: 12px;">
+                <code id="embed-github-code" style="flex: 1;">[![Roadmap](https://roadmapper.rocketstack.co/your-username/your-repo/ffffff/24292f)](https://roadmapper.rocketstack.co/view/your-username/your-repo/ffffff/24292f)
 
-> Click the roadmap to view the interactive version with clickable cards.</code></div>
+> Click the roadmap to view the interactive version with clickable cards.</code>
+                <button onclick="copyEmbedCode('github')" class="copy-key-btn" id="copy-embed-github">Copy</button>
+              </div>
             </div>
 
             <div id="embed-iframe" class="embed-option">
               <p class="embed-description">For websites and documentation - Embed directly with clickable cards using an iframe:</p>
-              <div class="code-block"><code>&lt;iframe src="https://roadmapper.rocketstack.co/embed/your-username/your-repo/ffffff/24292f"
-        width="100%" height="520" frameborder="0"&gt;&lt;/iframe&gt;</code></div>
+              <div class="code-block" style="display: flex; align-items: flex-start; gap: 12px;">
+                <code id="embed-iframe-code" style="flex: 1;">&lt;iframe src="https://roadmapper.rocketstack.co/embed/your-username/your-repo/ffffff/24292f"
+        width="100%" height="520" frameborder="0"&gt;&lt;/iframe&gt;</code>
+                <button onclick="copyEmbedCode('iframe')" class="copy-key-btn" id="copy-embed-iframe">Copy</button>
+              </div>
             </div>
 
             <div id="embed-html" class="embed-option">
               <p class="embed-description">For advanced embedding - Use HTML image maps for direct embedding with clickable regions:</p>
-              <div class="code-block"><code>&lt;!-- Visit the link below to generate the HTML code --&gt;
-https://roadmapper.rocketstack.co/html/your-username/your-repo/ffffff/24292f</code></div>
+              <div class="code-block" style="display: flex; align-items: flex-start; gap: 12px;">
+                <code id="embed-html-code" style="flex: 1;">&lt;!-- Visit the link below to generate the HTML code --&gt;
+https://roadmapper.rocketstack.co/html/your-username/your-repo/ffffff/24292f</code>
+                <button onclick="copyEmbedCode('html')" class="copy-key-btn" id="copy-embed-html">Copy</button>
+              </div>
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   </section>
@@ -1081,6 +1122,74 @@ https://roadmapper.rocketstack.co/html/your-username/your-repo/ffffff/24292f</co
     updateThemeButton(savedTheme);
     updateRoadmapTheme(savedTheme);
 
+    // Handle confirmation query params on page load
+    function escapeHtml(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function onPageLoad() {
+      var params = new URLSearchParams(window.location.search);
+
+      if (params.get('confirmed') === 'true') {
+        var owner = params.get('owner') || '';
+        var repo = params.get('repo') || '';
+        var key = params.get('key') || '';
+
+        // Replace the registration form with a success banner
+        var registerCard = document.querySelector('.register-card');
+        registerCard.innerHTML =
+          '<div class="result-confirmed">' +
+            '<div class="confirm-icon">&#10003;</div>' +
+            '<h3>Email Confirmed!</h3>' +
+            '<p>Your API key for <strong>' + escapeHtml(owner) + '/' + escapeHtml(repo) + '</strong> is now active.</p>' +
+          '</div>';
+
+        // Update Step 2 command with the actual key
+        if (key) {
+          document.getElementById('step2-command').textContent =
+            'echo "' + key + '" > .roadmapper && git add .roadmapper && git commit -m "Add Roadmapper key" && git push';
+        }
+
+        // Update Step 3 embed codes with repo details
+        if (owner && repo) {
+          var repoPath = owner + '/' + repo;
+          document.getElementById('embed-github-code').textContent =
+            '[![Roadmap](https://roadmapper.rocketstack.co/' + repoPath + '/ffffff/24292f)](https://roadmapper.rocketstack.co/view/' + repoPath + '/ffffff/24292f)\\n\\n> Click the roadmap to view the interactive version with clickable cards.';
+          document.getElementById('embed-iframe-code').textContent =
+            '<iframe src="https://roadmapper.rocketstack.co/embed/' + repoPath + '/ffffff/24292f"\\n        width="100%" height="520" frameborder="0"></iframe>';
+          document.getElementById('embed-html-code').textContent =
+            '<!-- Visit the link below to generate the HTML code -->\\nhttps://roadmapper.rocketstack.co/html/' + repoPath + '/ffffff/24292f';
+        }
+
+        // Show Steps 2 and 3
+        document.getElementById('steps-2-3').style.display = '';
+
+        // Scroll to the Get Started section
+        document.getElementById('get-started').scrollIntoView({ behavior: 'smooth' });
+
+        // Clean URL
+        history.replaceState(null, '', '/');
+
+      } else if (params.get('confirm_error')) {
+        var errorMsg = params.get('confirm_error');
+
+        // Show error in the register-result area
+        var resultDiv = document.getElementById('register-result');
+        var errorDiv = document.getElementById('register-error');
+        document.getElementById('register-error-msg').textContent = errorMsg;
+        resultDiv.style.display = 'block';
+        errorDiv.style.display = 'block';
+
+        // Scroll to the Get Started section
+        document.getElementById('get-started').scrollIntoView({ behavior: 'smooth' });
+
+        // Clean URL
+        history.replaceState(null, '', '/');
+      }
+    }
+
+    onPageLoad();
+
     // Embed option toggle
     function showEmbedOption(option) {
       // Hide all options
@@ -1138,17 +1247,27 @@ https://roadmapper.rocketstack.co/html/your-username/your-repo/ffffff/24292f</co
             document.querySelector('.key-instructions').innerHTML =
               '<p><strong>Check your email!</strong> A confirmation link has been sent to your email address.</p>' +
               '<p>Your key will activate after you click the confirmation link (expires in 24 hours).</p>' +
-              '<p style="margin-top: 12px;">Once confirmed, follow Step 2 below to add this key to your repository.</p>';
+              '<p style="margin-top: 12px;">Once confirmed, you will be redirected here with the next steps ready to go.</p>';
           } else {
             btn.textContent = 'Registered!';
             document.querySelector('.key-instructions').innerHTML =
               '<p><strong>Save this key now</strong> — it will not be shown again.</p>' +
               '<p>Next, follow Step 2 below to add this key to your repository.</p>';
+            document.getElementById('steps-2-3').style.display = '';
           }
 
           // Update Step 2 command with the actual key
           const step2 = document.getElementById('step2-command');
           step2.textContent = 'echo "' + data.key + '" > .roadmapper && git add .roadmapper && git commit -m "Add Roadmapper key" && git push';
+
+          // Update Step 3 embed codes with repo details
+          const repoPath = owner + '/' + repo;
+          document.getElementById('embed-github-code').textContent =
+            '[![Roadmap](https://roadmapper.rocketstack.co/' + repoPath + '/ffffff/24292f)](https://roadmapper.rocketstack.co/view/' + repoPath + '/ffffff/24292f)\\n\\n> Click the roadmap to view the interactive version with clickable cards.';
+          document.getElementById('embed-iframe-code').textContent =
+            '<iframe src="https://roadmapper.rocketstack.co/embed/' + repoPath + '/ffffff/24292f"\\n        width="100%" height="520" frameborder="0"></iframe>';
+          document.getElementById('embed-html-code').textContent =
+            '<!-- Visit the link below to generate the HTML code -->\\nhttps://roadmapper.rocketstack.co/html/' + repoPath + '/ffffff/24292f';
         } else {
           document.getElementById('register-error-msg').textContent = data.error || 'Registration failed';
           errorDiv.style.display = 'block';
@@ -1177,6 +1296,15 @@ https://roadmapper.rocketstack.co/html/your-username/your-repo/ffffff/24292f</co
       const command = document.getElementById('step2-command').textContent;
       navigator.clipboard.writeText(command).then(() => {
         const btn = document.getElementById('step2-copy-btn');
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+      });
+    }
+
+    function copyEmbedCode(type) {
+      const code = document.getElementById('embed-' + type + '-code').textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        const btn = document.getElementById('copy-embed-' + type);
         btn.textContent = 'Copied!';
         setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
       });

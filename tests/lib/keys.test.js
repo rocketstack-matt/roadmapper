@@ -158,18 +158,22 @@ describe('lib/keys', () => {
 
   describe('storeConfirmToken', () => {
     test('stores token with TTL', async () => {
-      await storeConfirmToken('mytoken', 'myhash');
+      await storeConfirmToken('mytoken', 'myhash', 'rm_thekey');
 
-      expect(redis.set).toHaveBeenCalledWith('confirm:mytoken', 'myhash', { ex: REGISTRATION_TTL });
+      expect(redis.set).toHaveBeenCalledWith(
+        'confirm:mytoken',
+        { h: 'myhash', k: 'rm_thekey' },
+        { ex: REGISTRATION_TTL }
+      );
     });
   });
 
   describe('lookupConfirmToken', () => {
-    test('returns hash when token exists', async () => {
-      redis.get.mockResolvedValue('thehash');
+    test('returns object when token exists', async () => {
+      redis.get.mockResolvedValue({ h: 'thehash', k: 'rm_thekey' });
 
       const result = await lookupConfirmToken('mytoken');
-      expect(result).toBe('thehash');
+      expect(result).toEqual({ h: 'thehash', k: 'rm_thekey' });
       expect(redis.get).toHaveBeenCalledWith('confirm:mytoken');
     });
 
@@ -179,16 +183,23 @@ describe('lib/keys', () => {
       const result = await lookupConfirmToken('badtoken');
       expect(result).toBeNull();
     });
+
+    test('handles legacy plain string format', async () => {
+      redis.get.mockResolvedValue('legacyhash');
+
+      const result = await lookupConfirmToken('oldtoken');
+      expect(result).toEqual({ h: 'legacyhash', k: null });
+    });
   });
 
   describe('confirmRegistration', () => {
     test('confirms valid token and removes TTLs', async () => {
-      redis.get.mockResolvedValue('keyhash123');
+      redis.get.mockResolvedValue({ h: 'keyhash123', k: 'rm_thekey' });
       redis.hgetall.mockResolvedValue({ owner: 'fb', repo: 'react', emailConfirmed: 'false' });
 
       const result = await confirmRegistration('validtoken');
 
-      expect(result).toEqual({ success: true, owner: 'fb', repo: 'react' });
+      expect(result).toEqual({ success: true, owner: 'fb', repo: 'react', key: 'rm_thekey' });
       expect(redis.hset).toHaveBeenCalledWith('apikey:keyhash123', { emailConfirmed: 'true' });
       expect(redis.persist).toHaveBeenCalledWith('apikey:keyhash123');
       expect(redis.persist).toHaveBeenCalledWith('repo-key:fb/react');
@@ -205,7 +216,7 @@ describe('lib/keys', () => {
     });
 
     test('returns failure when registration data expired', async () => {
-      redis.get.mockResolvedValue('keyhash123');
+      redis.get.mockResolvedValue({ h: 'keyhash123', k: 'rm_thekey' });
       redis.hgetall.mockResolvedValue(null);
 
       const result = await confirmRegistration('orphantoken');

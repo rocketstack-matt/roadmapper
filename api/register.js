@@ -70,7 +70,7 @@ const handler = async (req, res) => {
   if (needsConfirmation) {
     // Generate confirmation token and store it
     const confirmToken = crypto.randomBytes(32).toString('hex');
-    await storeConfirmToken(confirmToken, keyHash);
+    await storeConfirmToken(confirmToken, keyHash, key);
 
     // Build confirmation URL
     const host = req.headers.host || 'roadmapper.rocketstack.co';

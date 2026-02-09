@@ -16,9 +16,13 @@ const createMockRes = () => {
     statusCode: 200,
     headers: {},
     body: null,
+    redirectUrl: null,
+    redirectStatus: null,
     setHeader(name, value) { res.headers[name] = value; return res; },
     status(code) { res.statusCode = code; return res; },
     send(body) { res.body = body; return res; },
+    json(data) { res.body = data; return res; },
+    redirect(status, url) { res.redirectStatus = status; res.redirectUrl = url; return res; },
   };
   return res;
 };
@@ -33,48 +37,54 @@ describe('api/confirm', () => {
     const res = createMockRes();
     await confirmHandler(req, res);
     expect(res.statusCode).toBe(405);
+    expect(res.body).toEqual({ error: 'Method not allowed' });
   });
 
-  test('returns 400 when no token provided', async () => {
+  test('redirects with error when no token provided', async () => {
     const req = createMockReq('/api/confirm');
     const res = createMockRes();
     await confirmHandler(req, res);
-    expect(res.statusCode).toBe(400);
-    expect(res.body).toContain('Missing Token');
+    expect(res.redirectStatus).toBe(302);
+    expect(res.redirectUrl).toContain('confirm_error=');
+    expect(res.redirectUrl).toContain(encodeURIComponent('No confirmation token provided'));
   });
 
-  test('returns 400 for invalid token', async () => {
+  test('redirects with error for invalid token', async () => {
     confirmRegistration.mockResolvedValue({ success: false, reason: 'Invalid or expired confirmation token' });
     const req = createMockReq('/api/confirm?token=badtoken');
     const res = createMockRes();
     await confirmHandler(req, res);
-    expect(res.statusCode).toBe(400);
-    expect(res.body).toContain('Confirmation Failed');
+    expect(res.redirectStatus).toBe(302);
+    expect(res.redirectUrl).toContain('confirm_error=');
+    expect(res.redirectUrl).toContain(encodeURIComponent('Invalid or expired confirmation token'));
   });
 
-  test('returns 200 with success page for valid token', async () => {
-    confirmRegistration.mockResolvedValue({ success: true, owner: 'facebook', repo: 'react' });
+  test('redirects with confirmation data for valid token', async () => {
+    confirmRegistration.mockResolvedValue({ success: true, owner: 'facebook', repo: 'react', key: 'rm_abc123' });
     const req = createMockReq('/api/confirm?token=validtoken');
     const res = createMockRes();
     await confirmHandler(req, res);
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('Email Confirmed');
-    expect(res.body).toContain('facebook/react');
+    expect(res.redirectStatus).toBe(302);
+    expect(res.redirectUrl).toContain('confirmed=true');
+    expect(res.redirectUrl).toContain('owner=facebook');
+    expect(res.redirectUrl).toContain('repo=react');
+    expect(res.redirectUrl).toContain('key=rm_abc123');
   });
 
-  test('returns HTML content type', async () => {
-    confirmRegistration.mockResolvedValue({ success: true, owner: 'owner', repo: 'repo' });
-    const req = createMockReq('/api/confirm?token=valid');
-    const res = createMockRes();
-    await confirmHandler(req, res);
-    expect(res.headers['Content-Type']).toBe('text/html');
-  });
-
-  test('shows error reason in failure page', async () => {
+  test('redirects with error reason when confirmation fails', async () => {
     confirmRegistration.mockResolvedValue({ success: false, reason: 'Registration data not found (may have expired)' });
     const req = createMockReq('/api/confirm?token=expired');
     const res = createMockRes();
     await confirmHandler(req, res);
-    expect(res.body).toContain('Registration data not found');
+    expect(res.redirectStatus).toBe(302);
+    expect(res.redirectUrl).toContain(encodeURIComponent('Registration data not found'));
+  });
+
+  test('uses 302 redirect status', async () => {
+    confirmRegistration.mockResolvedValue({ success: true, owner: 'owner', repo: 'repo', key: 'rm_key' });
+    const req = createMockReq('/api/confirm?token=valid');
+    const res = createMockRes();
+    await confirmHandler(req, res);
+    expect(res.redirectStatus).toBe(302);
   });
 });

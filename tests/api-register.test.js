@@ -209,7 +209,7 @@ describe('api/register', () => {
 
       await registerHandler(req, res);
 
-      expect(storeConfirmToken).toHaveBeenCalledWith(expect.any(String), 'fakehash');
+      expect(storeConfirmToken).toHaveBeenCalledWith(expect.any(String), 'fakehash', 'rm_test1234567890abcdef12345678');
     });
 
     test('sends confirmation email', async () => {
