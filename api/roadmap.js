@@ -1,5 +1,6 @@
 const { generateRoadmapSVG, fetchIssues } = require('../roadmap');
 const { withMiddleware } = require('../lib/middleware');
+const { trackEvent } = require('../lib/analytics');
 
 const handler = async (req, res) => {
   // Extract the path from the URL
@@ -31,6 +32,12 @@ const handler = async (req, res) => {
   try {
     const issues = await fetchIssues(owner, repo, req.cacheTtl);
     const svgContent = generateRoadmapSVG(issues, bgColor, textColor);
+
+    trackEvent('roadmap_view', {
+      client_id: (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').split(',')[0].trim(),
+      owner,
+      repo
+    });
 
     res.setHeader('Content-Type', 'image/svg+xml');
     res.send(svgContent);
