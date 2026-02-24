@@ -202,6 +202,7 @@ const handler = async (req, res) => {
 
     <div class="footer">
       <p>Powered by <a href="https://roadmapper.rocketstack.co" target="_blank">Roadmapper</a> · Click any item to view the issue on GitHub</p>
+      <p style="margin-top: 8px; font-size: 12px;">Roadmaps are cached for 60 minutes</p>
     </div>
   </div>
 
