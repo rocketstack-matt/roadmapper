@@ -234,8 +234,8 @@ describe('generateRoadmapSVG', () => {
       createMockIssue(3, 'Issue 3', 'Roadmap: Now', '2da44e'),
     ];
     const svg = generateRoadmapSVG(issues, 'ffffff', '24292f');
-    // Height = 140 + (3 * 95) = 425
-    expect(svg).toContain('viewBox="0 0 1140 425"');
+    // Height = 140 + (3 * 95) + 30 (footer) = 455
+    expect(svg).toContain('viewBox="0 0 1140 455"');
   });
 
   test('excludes issues without roadmap labels', () => {

@@ -103,7 +103,8 @@ const generateRoadmapSVG = (issues, bgColor, textColor) => {
     };
 
     const maxItemsCount = Math.max(columns.now.length, columns.next.length, columns.later.length);
-    const svgHeight = 140 + (maxItemsCount * 95);
+    const footerY = 140 + (maxItemsCount * 95);
+    const svgHeight = footerY + 30;
 
     return `
     <svg viewBox="0 0 1140 ${svgHeight}" xmlns="http://www.w3.org/2000/svg" style="background-color: ${backgroundColor};">
@@ -117,6 +118,7 @@ const generateRoadmapSVG = (issues, bgColor, textColor) => {
       ${createColumn('Now', "We're working on it right now", columns.now, 0, 'now', headerColor, subheaderColor, backgroundColor, cardBackground, cardTextColor, shadowColor, hoverShadowColor)}
       ${createColumn('Next', "Coming up next", columns.next, 380, 'next', headerColor, subheaderColor, backgroundColor, cardBackground, cardTextColor, shadowColor, hoverShadowColor)}
       ${createColumn('Later', "On the horizon", columns.later, 760, 'later', headerColor, subheaderColor, backgroundColor, cardBackground, cardTextColor, shadowColor, hoverShadowColor)}
+      <text x="570" y="${footerY + 15}" style="font-size: 12px; text-anchor: middle; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-weight: 400; fill: ${subheaderColor};">Roadmaps are cached for 60 minutes</text>
     </svg>
   `;
 };
