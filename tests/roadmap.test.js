@@ -4,7 +4,16 @@ const {
   fetchIssues,
   validateHexColor,
   normalizeHex,
-  hexToRgba
+  hexToRgba,
+  groupIssues,
+  buildGlobalLayout,
+  calculateColumnHeight,
+  COLUMN_HEADER_HEIGHT,
+  CARD_SLOT_HEIGHT,
+  GROUP_HEADER_HEIGHT,
+  INTER_GROUP_GAP,
+  GROUP_LABEL_PREFIX,
+  UNGROUPED_LABEL
 } = require('../roadmap');
 
 jest.mock('axios');
@@ -264,6 +273,333 @@ describe('generateRoadmapSVG', () => {
     expect(svg).toContain('translate(0, 0)');
     expect(svg).toContain('translate(380, 0)');
     expect(svg).toContain('translate(760, 0)');
+  });
+});
+
+describe('groupIssues', () => {
+  test('returns all issues as ungrouped when no group labels exist', () => {
+    const issues = [
+      createMockIssue(1, 'Feature A', 'Roadmap: Now', '2da44e'),
+      createMockIssue(2, 'Feature B', 'Roadmap: Now', '2da44e'),
+    ];
+    const result = groupIssues(issues);
+    expect(result.groups).toHaveLength(0);
+    expect(result.ungrouped).toHaveLength(2);
+  });
+
+  test('groups issues by Roadmap Group label', () => {
+    const issues = [
+      { number: 1, title: 'A', html_url: 'u/1', labels: [{ name: 'Roadmap: Now', color: '2da44e' }, { name: 'Roadmap Group: Frontend', color: 'ff0000' }] },
+      { number: 2, title: 'B', html_url: 'u/2', labels: [{ name: 'Roadmap: Now', color: '2da44e' }, { name: 'Roadmap Group: Frontend', color: 'ff0000' }] },
+      { number: 3, title: 'C', html_url: 'u/3', labels: [{ name: 'Roadmap: Now', color: '2da44e' }, { name: 'Roadmap Group: Backend', color: '00ff00' }] },
+    ];
+    const result = groupIssues(issues);
+    expect(result.groups).toHaveLength(2);
+    expect(result.ungrouped).toHaveLength(0);
+  });
+
+  test('sorts groups alphabetically by name', () => {
+    const issues = [
+      { number: 1, title: 'A', html_url: 'u/1', labels: [{ name: 'Roadmap Group: Zebra', color: 'aaa' }] },
+      { number: 2, title: 'B', html_url: 'u/2', labels: [{ name: 'Roadmap Group: Alpha', color: 'bbb' }] },
+    ];
+    const result = groupIssues(issues);
+    expect(result.groups[0].name).toBe('Alpha');
+    expect(result.groups[1].name).toBe('Zebra');
+  });
+
+  test('strips Roadmap Group: prefix from group name', () => {
+    const issues = [
+      { number: 1, title: 'A', html_url: 'u/1', labels: [{ name: 'Roadmap Group: My Team', color: 'aaa' }] },
+    ];
+    const result = groupIssues(issues);
+    expect(result.groups[0].name).toBe('My Team');
+  });
+
+  test('extracts group label color', () => {
+    const issues = [
+      { number: 1, title: 'A', html_url: 'u/1', labels: [{ name: 'Roadmap Group: Frontend', color: 'ff5500' }] },
+    ];
+    const result = groupIssues(issues);
+    expect(result.groups[0].color).toBe('ff5500');
+  });
+
+  test('separates grouped and ungrouped issues', () => {
+    const issues = [
+      { number: 1, title: 'Grouped', html_url: 'u/1', labels: [{ name: 'Roadmap Group: API', color: 'aaa' }] },
+      { number: 2, title: 'Ungrouped', html_url: 'u/2', labels: [{ name: 'Roadmap: Now', color: 'bbb' }] },
+    ];
+    const result = groupIssues(issues);
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0].issues).toHaveLength(1);
+    expect(result.groups[0].issues[0].title).toBe('Grouped');
+    expect(result.ungrouped).toHaveLength(1);
+    expect(result.ungrouped[0].title).toBe('Ungrouped');
+  });
+
+  test('uses first matching group label when issue has multiple', () => {
+    const issues = [
+      { number: 1, title: 'A', html_url: 'u/1', labels: [
+        { name: 'Roadmap Group: First', color: 'aaa' },
+        { name: 'Roadmap Group: Second', color: 'bbb' }
+      ]},
+    ];
+    const result = groupIssues(issues);
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0].name).toBe('First');
+  });
+
+  test('handles empty issues array', () => {
+    const result = groupIssues([]);
+    expect(result.groups).toHaveLength(0);
+    expect(result.ungrouped).toHaveLength(0);
+  });
+});
+
+describe('calculateColumnHeight', () => {
+  test('returns base height for empty column', () => {
+    const result = calculateColumnHeight({ groups: [], ungrouped: [] });
+    expect(result).toBe(COLUMN_HEADER_HEIGHT);
+  });
+
+  test('matches old formula when no groups exist', () => {
+    const ungrouped = [{}, {}, {}]; // 3 items
+    const result = calculateColumnHeight({ groups: [], ungrouped });
+    // Old formula: 130 + 3*95 = 415
+    expect(result).toBe(COLUMN_HEADER_HEIGHT + 3 * CARD_SLOT_HEIGHT);
+  });
+
+  test('accounts for group headers', () => {
+    const groupedData = {
+      groups: [
+        { name: 'A', color: 'aaa', issues: [{}] },
+        { name: 'B', color: 'bbb', issues: [{}] },
+      ],
+      ungrouped: []
+    };
+    const result = calculateColumnHeight(groupedData);
+    // 130 + 2*35 (headers) + 1*10 (inter-group gap) + 2*95 (cards)
+    expect(result).toBe(130 + 70 + 10 + 190);
+  });
+
+  test('accounts for gap before ungrouped when groups exist', () => {
+    const groupedData = {
+      groups: [{ name: 'A', color: 'aaa', issues: [{}] }],
+      ungrouped: [{}]
+    };
+    const result = calculateColumnHeight(groupedData);
+    // 130 + 1*35 (header) + 0 (no inter-group gap for single group) + 1*10 (gap before ungrouped) + 2*95 (cards)
+    expect(result).toBe(130 + 35 + 10 + 190);
+  });
+});
+
+describe('buildGlobalLayout', () => {
+  const emptyGrouped = { groups: [], ungrouped: [] };
+
+  test('returns flat layout when no groups exist', () => {
+    const columns = {
+      now: { groups: [], ungrouped: [{}, {}] },
+      next: { groups: [], ungrouped: [{}] },
+      later: { groups: [], ungrouped: [] }
+    };
+    const layout = buildGlobalLayout(columns);
+    expect(layout.hasGroups).toBe(false);
+    expect(layout.bands).toHaveLength(0);
+    expect(layout.ungroupedBand).toBeNull();
+    expect(layout.totalHeight).toBe(COLUMN_HEADER_HEIGHT + 2 * CARD_SLOT_HEIGHT);
+  });
+
+  test('creates bands for groups spanning all columns', () => {
+    const columns = {
+      now: { groups: [{ name: 'API', color: 'aaa', issues: [{}, {}] }], ungrouped: [] },
+      next: { groups: [{ name: 'API', color: 'aaa', issues: [{}] }], ungrouped: [] },
+      later: { groups: [], ungrouped: [] }
+    };
+    const layout = buildGlobalLayout(columns);
+    expect(layout.hasGroups).toBe(true);
+    expect(layout.bands).toHaveLength(1);
+    expect(layout.bands[0].name).toBe('API');
+    expect(layout.bands[0].maxCards).toBe(2); // max across columns
+  });
+
+  test('sorts bands alphabetically', () => {
+    const columns = {
+      now: { groups: [{ name: 'Zebra', color: 'aaa', issues: [{}] }], ungrouped: [] },
+      next: { groups: [{ name: 'Alpha', color: 'bbb', issues: [{}] }], ungrouped: [] },
+      later: emptyGrouped
+    };
+    const layout = buildGlobalLayout(columns);
+    expect(layout.bands[0].name).toBe('Alpha');
+    expect(layout.bands[1].name).toBe('Zebra');
+  });
+
+  test('calculates correct yStart for each band', () => {
+    const columns = {
+      now: { groups: [
+        { name: 'A', color: 'aaa', issues: [{}] },
+        { name: 'B', color: 'bbb', issues: [{}, {}] }
+      ], ungrouped: [] },
+      next: emptyGrouped,
+      later: emptyGrouped
+    };
+    const layout = buildGlobalLayout(columns);
+    // Band A: yStart = 130
+    expect(layout.bands[0].yStart).toBe(COLUMN_HEADER_HEIGHT);
+    // Band B: yStart = 130 + 35 + 1*95 + 10 = 270
+    expect(layout.bands[1].yStart).toBe(COLUMN_HEADER_HEIGHT + GROUP_HEADER_HEIGHT + CARD_SLOT_HEIGHT + INTER_GROUP_GAP);
+  });
+
+  test('creates ungrouped band when groups and ungrouped issues coexist', () => {
+    const columns = {
+      now: { groups: [{ name: 'API', color: 'aaa', issues: [{}] }], ungrouped: [{}] },
+      next: emptyGrouped,
+      later: { groups: [], ungrouped: [{}, {}] }
+    };
+    const layout = buildGlobalLayout(columns);
+    expect(layout.ungroupedBand).not.toBeNull();
+    expect(layout.ungroupedBand.name).toBe(UNGROUPED_LABEL);
+    expect(layout.ungroupedBand.maxCards).toBe(2); // max ungrouped across columns
+  });
+
+  test('no ungrouped band when all issues are grouped', () => {
+    const columns = {
+      now: { groups: [{ name: 'API', color: 'aaa', issues: [{}] }], ungrouped: [] },
+      next: emptyGrouped,
+      later: emptyGrouped
+    };
+    const layout = buildGlobalLayout(columns);
+    expect(layout.ungroupedBand).toBeNull();
+  });
+
+  test('calculates correct totalHeight with bands and ungrouped', () => {
+    const columns = {
+      now: { groups: [{ name: 'API', color: 'aaa', issues: [{}, {}] }], ungrouped: [{}] },
+      next: { groups: [{ name: 'API', color: 'aaa', issues: [{}] }], ungrouped: [{}, {}, {}] },
+      later: emptyGrouped
+    };
+    const layout = buildGlobalLayout(columns);
+    // Band API: 35 + 2*95 = 225
+    // Gap: 10
+    // Ungrouped band: 35 + 3*95 = 320
+    // Total: 130 + 225 + 10 + 320 = 685
+    expect(layout.totalHeight).toBe(COLUMN_HEADER_HEIGHT + GROUP_HEADER_HEIGHT + 2 * CARD_SLOT_HEIGHT + INTER_GROUP_GAP + GROUP_HEADER_HEIGHT + 3 * CARD_SLOT_HEIGHT);
+  });
+
+  test('uses max card count across columns for band height', () => {
+    const columns = {
+      now: { groups: [{ name: 'X', color: 'aaa', issues: [{}] }], ungrouped: [] },
+      next: { groups: [{ name: 'X', color: 'aaa', issues: [{}, {}, {}] }], ungrouped: [] },
+      later: { groups: [{ name: 'X', color: 'aaa', issues: [{}, {}] }], ungrouped: [] }
+    };
+    const layout = buildGlobalLayout(columns);
+    expect(layout.bands[0].maxCards).toBe(3);
+    expect(layout.bands[0].bandHeight).toBe(GROUP_HEADER_HEIGHT + 3 * CARD_SLOT_HEIGHT);
+  });
+
+  test('handles group in only one column', () => {
+    const columns = {
+      now: { groups: [{ name: 'Solo', color: 'fff', issues: [{}] }], ungrouped: [] },
+      next: emptyGrouped,
+      later: emptyGrouped
+    };
+    const layout = buildGlobalLayout(columns);
+    expect(layout.hasGroups).toBe(true);
+    expect(layout.bands).toHaveLength(1);
+    expect(layout.bands[0].name).toBe('Solo');
+    expect(layout.bands[0].maxCards).toBe(1);
+  });
+});
+
+describe('generateRoadmapSVG with groups', () => {
+  test('renders full-width group container', () => {
+    const issues = [
+      { number: 1, title: 'Card 1', html_url: 'u/1', labels: [
+        { name: 'Roadmap: Now', color: '2da44e' },
+        { name: 'Roadmap Group: Frontend', color: 'ff0000' }
+      ]},
+    ];
+    const svg = generateRoadmapSVG(issues, 'ffffff', '24292f');
+    // Single full-width container with group name
+    expect(svg).toContain('Frontend');
+    expect(svg).toContain('width="1130"'); // full-width container
+    expect(svg).toContain('drop-shadow'); // shadow-only container
+  });
+
+  test('renders cards within groups', () => {
+    const issues = [
+      { number: 1, title: 'Grouped Card', html_url: 'https://github.com/o/r/issues/1', labels: [
+        { name: 'Roadmap: Now', color: '2da44e' },
+        { name: 'Roadmap Group: API', color: 'aabbcc' }
+      ]},
+    ];
+    const svg = generateRoadmapSVG(issues, 'ffffff', '24292f');
+    expect(svg).toContain('Grouped Card');
+    expect(svg).toContain('href="https://github.com/o/r/issues/1"');
+  });
+
+  test('renders ungrouped cards under Other header', () => {
+    const issues = [
+      { number: 1, title: 'Grouped', html_url: 'u/1', labels: [
+        { name: 'Roadmap: Now', color: '2da44e' },
+        { name: 'Roadmap Group: Team A', color: 'ff0000' }
+      ]},
+      { number: 2, title: 'Ungrouped', html_url: 'u/2', labels: [
+        { name: 'Roadmap: Now', color: '2da44e' }
+      ]},
+    ];
+    const svg = generateRoadmapSVG(issues, 'ffffff', '24292f');
+    expect(svg).toContain('>Other<');
+    const groupedIdx = svg.indexOf('Grouped');
+    const ungroupedIdx = svg.indexOf('Ungrouped');
+    expect(groupedIdx).toBeLessThan(ungroupedIdx);
+  });
+
+  test('backward compatible - no groups produces same structure as before', () => {
+    const issues = [
+      createMockIssue(1, 'Feature A', 'Roadmap: Now', '2da44e'),
+      createMockIssue(2, 'Feature B', 'Roadmap: Next', 'fb8500'),
+    ];
+    const svg = generateRoadmapSVG(issues, 'ffffff', '24292f');
+    // Should not contain any group header elements
+    expect(svg).not.toContain('>Other<');
+    expect(svg).not.toMatch(/opacity: 0\.8;.*Roadmap Group/);
+    expect(svg).toContain('Feature A');
+    expect(svg).toContain('Feature B');
+  });
+
+  test('adjusts SVG height for global band layout', () => {
+    // Group in Now only, ungrouped in Later only
+    const issues = [
+      { number: 1, title: 'A', html_url: 'u/1', labels: [
+        { name: 'Roadmap: Now', color: '2da44e' },
+        { name: 'Roadmap Group: Group 1', color: 'aaa' }
+      ]},
+      { number: 2, title: 'B', html_url: 'u/2', labels: [
+        { name: 'Roadmap: Later', color: '8b949e' }
+      ]},
+    ];
+    const svg = generateRoadmapSVG(issues, 'ffffff', '24292f');
+    // Global layout:
+    // Band "Group 1": 130 + 35 + 1*95 = 260
+    // Gap: 10
+    // Ungrouped band: 270 + 35 + 1*95 = 400
+    // footerY = 400 + 10 = 410, svgHeight = 440
+    expect(svg).toContain('viewBox="0 0 1140 440"');
+  });
+
+  test('full-width container spans all columns even when group has cards in only one', () => {
+    // Group only in Now column
+    const issues = [
+      { number: 1, title: 'Now Card', html_url: 'u/1', labels: [
+        { name: 'Roadmap: Now', color: '2da44e' },
+        { name: 'Roadmap Group: API', color: 'ff0000' }
+      ]},
+    ];
+    const svg = generateRoadmapSVG(issues, 'ffffff', '24292f');
+    // Single full-width container with group name
+    const apiMatches = svg.match(/>API</g);
+    expect(apiMatches).toHaveLength(1);
+    expect(svg).toContain('width="1130"');
   });
 });
 

@@ -34,6 +34,29 @@ The roadmap automatically categorizes issues into columns based on labels:
 
 Issues are sorted by issue number and rendered in their respective columns.
 
+### Issue Grouping
+
+Issues within a column can be visually grouped using labels with the `Roadmap Group: ` prefix:
+- **"Roadmap Group: Frontend"**: Groups all frontend issues together
+- **"Roadmap Group: API"**: Groups all API issues together
+- Any `Roadmap Group: <name>` label creates a named group
+
+**Grouping behavior:**
+- Issues with a group label are rendered under a group header (accent line + group name)
+- Groups are sorted alphabetically by name within each column
+- Ungrouped issues (no group label) appear after all groups
+- The group header uses the GitHub label color as an accent
+- If no issues have group labels, the column renders identically to the ungrouped layout (fully backward compatible)
+- An issue uses the first matching `Roadmap Group: *` label if multiple are present
+
+**Implementation:** `groupIssues()` in `roadmap.js` takes a column's filtered issues and returns `{ groups: [{ name, color, issues }], ungrouped: [] }`. Both `createColumn()` (SVG rendering) and `api/embed.js` (image map coordinates) use cumulative Y positioning to account for group headers.
+
+**Layout constants** (exported from `roadmap.js`):
+- `COLUMN_HEADER_HEIGHT`: 130px (title + subtitle area)
+- `CARD_SLOT_HEIGHT`: 95px (75px card + 20px gap)
+- `GROUP_HEADER_HEIGHT`: 35px (accent line + group name text)
+- `INTER_GROUP_GAP`: 10px (spacing between groups and before ungrouped section)
+
 ### Custom Color System
 
 The service supports fully customizable colors via two URL parameters:

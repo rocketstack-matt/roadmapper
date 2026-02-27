@@ -224,11 +224,29 @@ If a label color cannot be determined, the card will use a default gray color.
 
 Issues are automatically sorted by issue number within each column.
 
+### Grouping Issues
+
+You can visually group related issues within a column by adding `Roadmap Group: <name>` labels. For example:
+
+- `Roadmap Group: Frontend` — groups all frontend-related issues together
+- `Roadmap Group: API` — groups API work together
+- `Roadmap Group: Auth` — groups authentication issues together
+
+**How to use:**
+1. Create labels in GitHub with the `Roadmap Group: ` prefix (e.g., `Roadmap Group: Frontend`)
+2. Apply both a column label (`Roadmap: Now`) and a group label (`Roadmap Group: Frontend`) to an issue
+3. Issues with the same group label are rendered together under a group header
+4. Ungrouped issues (no group label) appear at the bottom of the column
+5. Groups are sorted alphabetically; the group header uses the label's color as an accent
+
+Grouping is fully optional — if no issues have group labels, the roadmap displays exactly as before.
+
 ## Features
 
 - ✨ Clean, modern SVG output
 - 🎨 Fully customizable colors (background and text)
 - 🎨 Automatic label color matching from GitHub
+- 📂 Optional issue grouping within columns via `Roadmap Group: <name>` labels
 - 🔄 Automatic updates from GitHub issues (free tier refreshes hourly)
 - 📱 Responsive design
 - 🚀 Serverless deployment ready

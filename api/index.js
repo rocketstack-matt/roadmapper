@@ -848,7 +848,7 @@ const handler = async (req, res) => {
         <div class="step">
           <div class="step-number">1</div>
           <h3 class="step-title">Label Your Issues</h3>
-          <p class="step-description">Add <span class="gh-label gh-label-now">Roadmap: Now</span>, <span class="gh-label gh-label-next">Roadmap: Next</span>, or <span class="gh-label gh-label-later">Roadmap: Later</span> labels to your GitHub issues</p>
+          <p class="step-description">Add <span class="gh-label gh-label-now">Roadmap: Now</span>, <span class="gh-label gh-label-next">Roadmap: Next</span>, or <span class="gh-label gh-label-later">Roadmap: Later</span> labels to your GitHub issues. Optionally group related issues with <span class="gh-label" style="background: var(--accent-teal); color: white;">Roadmap Group: &lt;name&gt;</span> labels</p>
         </div>
         <div class="step">
           <div class="step-number">2</div>
@@ -870,7 +870,7 @@ const handler = async (req, res) => {
       <h2 class="section-title">Live Example</h2>
       <p class="section-description">Click on any card to view the issue on GitHub</p>
       <div class="example-container">
-        <iframe id="roadmap-iframe" src="${baseUrl}/embed/rocketstack-matt/roadmapper/ffffff/24292f" width="100%" height="520" frameborder="0" style="border: none; border-radius: 8px; transition: height 0.3s ease;"></iframe>
+        <iframe id="roadmap-iframe" src="${baseUrl}/embed/rocketstack-matt/roadmapper/ffffff/24292f" width="100%" height="520" frameborder="0" scrolling="no" style="border: none; border-radius: 8px; transition: height 0.3s ease;"></iframe>
       </div>
     </div>
   </section>
@@ -1036,12 +1036,6 @@ https://roadmapper.rocketstack.co/html/your-username/your-repo/ffffff/24292f</co
 
       <div class="features-grid">
         <div class="feature-card">
-          <div class="feature-icon">✨</div>
-          <h3 class="feature-title">Clean Design</h3>
-          <p class="feature-description">Modern, minimal SVG output that looks great anywhere</p>
-        </div>
-
-        <div class="feature-card">
           <div class="feature-icon">🎨</div>
           <h3 class="feature-title">Label Colors</h3>
           <p class="feature-description">Uses your actual GitHub label colors automatically</p>
@@ -1069,6 +1063,12 @@ https://roadmapper.rocketstack.co/html/your-username/your-repo/ffffff/24292f</co
           <div class="feature-icon">🎯</div>
           <h3 class="feature-title">Clickable Cards</h3>
           <p class="feature-description">Interactive viewer with direct links to GitHub issues</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">📂</div>
+          <h3 class="feature-title">Issue Grouping</h3>
+          <p class="feature-description">Group related issues within columns using <code style="font-size: 13px; background: var(--code-bg); padding: 2px 6px; border-radius: 4px;">Roadmap Group: &lt;name&gt;</code> labels</p>
         </div>
       </div>
     </div>
