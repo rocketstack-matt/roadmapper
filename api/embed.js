@@ -1,4 +1,4 @@
-const { generateRoadmapSVG, fetchIssues } = require('../roadmap');
+const { fetchIssues, groupIssues, buildGlobalLayout, COLUMN_HEADER_HEIGHT, CARD_SLOT_HEIGHT, GROUP_HEADER_HEIGHT } = require('../roadmap');
 
 const { withMiddleware } = require('../lib/middleware');
 
@@ -35,40 +35,71 @@ const handler = async (req, res) => {
     issues.sort((a, b) => a.number - b.number);
 
     const columns = {
-      now: issues.filter(issue => issue.labels.some(label => label.name === 'Roadmap: Now')),
-      next: issues.filter(issue => issue.labels.some(label => label.name === 'Roadmap: Next')),
-      later: issues.filter(issue => issue.labels.some(label => label.name === 'Roadmap: Later'))
+      now: groupIssues(issues.filter(issue => issue.labels.some(label => label.name === 'Roadmap: Now'))),
+      next: groupIssues(issues.filter(issue => issue.labels.some(label => label.name === 'Roadmap: Next'))),
+      later: groupIssues(issues.filter(issue => issue.labels.some(label => label.name === 'Roadmap: Later')))
     };
 
-    const maxItemsCount = Math.max(columns.now.length, columns.next.length, columns.later.length);
-    const svgHeight = 140 + (maxItemsCount * 95);
-    const svgWidth = 1140;
+    const layout = buildGlobalLayout(columns);
 
     const imageUrl = `${baseUrl}/${owner}/${repo}/${bgColor}/${textColor}`;
 
-    // Generate image map areas for each card
-    let mapAreas = '';
+    // Generate image map areas for each card using global layout coordinates
+    const createGroupedAreas = (groupedData, columnIndex) => {
+      const areas = [];
 
-    // Helper function to create area for each column
-    const createAreas = (items, columnIndex) => {
-      return items.map((issue, itemIndex) => {
-        const xOffset = columnIndex * 380;
-        const yOffset = 130 + (itemIndex * 95);
+      if (!layout.hasGroups) {
+        // Flat layout - no groups
+        let y = COLUMN_HEADER_HEIGHT;
+        groupedData.ungrouped.forEach(issue => {
+          const xOffset = columnIndex * 380;
+          const x1 = xOffset + 15;
+          const y1 = y;
+          const x2 = xOffset + 365;
+          const y2 = y + 75;
+          areas.push(`<area shape="rect" coords="${x1},${y1},${x2},${y2}" href="${issue.html_url}" alt="${issue.title}" target="_blank">`);
+          y += CARD_SLOT_HEIGHT;
+        });
+      } else {
+        // Global band positions
+        for (const band of layout.bands) {
+          const group = groupedData.groups.find(g => g.name === band.name);
+          if (group) {
+            let y = band.yStart + GROUP_HEADER_HEIGHT;
+            group.issues.forEach(issue => {
+              const xOffset = columnIndex * 380;
+              const x1 = xOffset + 15;
+              const y1 = y;
+              const x2 = xOffset + 365;
+              const y2 = y + 75;
+              areas.push(`<area shape="rect" coords="${x1},${y1},${x2},${y2}" href="${issue.html_url}" alt="${issue.title}" target="_blank">`);
+              y += CARD_SLOT_HEIGHT;
+            });
+          }
+        }
 
-        // Card coordinates: x=15, y=yOffset, width=350, height=75 (relative to column)
-        const x1 = xOffset + 15;
-        const y1 = yOffset;
-        const x2 = xOffset + 365; // 15 + 350
-        const y2 = yOffset + 75;
+        // Ungrouped band
+        if (layout.ungroupedBand) {
+          let y = layout.ungroupedBand.yStart + GROUP_HEADER_HEIGHT;
+          groupedData.ungrouped.forEach(issue => {
+            const xOffset = columnIndex * 380;
+            const x1 = xOffset + 15;
+            const y1 = y;
+            const x2 = xOffset + 365;
+            const y2 = y + 75;
+            areas.push(`<area shape="rect" coords="${x1},${y1},${x2},${y2}" href="${issue.html_url}" alt="${issue.title}" target="_blank">`);
+            y += CARD_SLOT_HEIGHT;
+          });
+        }
+      }
 
-        return `<area shape="rect" coords="${x1},${y1},${x2},${y2}" href="${issue.html_url}" alt="${issue.title}" target="_blank">`;
-      }).join('\n      ');
+      return areas.join('\n      ');
     };
 
-    mapAreas = `
-      ${createAreas(columns.now, 0)}
-      ${createAreas(columns.next, 1)}
-      ${createAreas(columns.later, 2)}
+    const mapAreas = `
+      ${createGroupedAreas(columns.now, 0)}
+      ${createGroupedAreas(columns.next, 1)}
+      ${createGroupedAreas(columns.later, 2)}
     `;
 
     const gaId = process.env.GA_MEASUREMENT_ID;
@@ -82,7 +113,7 @@ const handler = async (req, res) => {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">${gaSnippet}
   <style>
-    body { margin: 0; padding: 0; }
+    html, body { margin: 0; padding: 0; overflow: hidden; }
     img { max-width: 100%; height: auto; display: block; }
   </style>
   <script>

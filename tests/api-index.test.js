@@ -109,12 +109,12 @@ describe('api/index', () => {
     await indexHandler(req, res);
 
     expect(res.body).toContain('Features');
-    expect(res.body).toContain('Clean Design');
     expect(res.body).toContain('Label Colors');
     expect(res.body).toContain('Auto Updates');
     expect(res.body).toContain('Per-Repo Keys');
     expect(res.body).toContain('Fast & Cached');
     expect(res.body).toContain('Clickable Cards');
+    expect(res.body).toContain('Issue Grouping');
   });
 
   test('includes footer with attribution', async () => {

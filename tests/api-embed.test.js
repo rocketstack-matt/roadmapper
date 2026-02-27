@@ -1,9 +1,12 @@
 const { createMockReq, createMockRes, mockIssues } = require('./helpers');
 
-jest.mock('../roadmap', () => ({
-  generateRoadmapSVG: jest.fn(),
-  fetchIssues: jest.fn(),
-}));
+jest.mock('../roadmap', () => {
+  const actual = jest.requireActual('../roadmap');
+  return {
+    ...actual,
+    fetchIssues: jest.fn(),
+  };
+});
 
 const { fetchIssues } = require('../roadmap');
 const embedHandler = require('../api/embed');
@@ -179,5 +182,47 @@ describe('api/embed', () => {
     expect(res.body).toContain("postMessage");
     expect(res.body).toContain("'roadmap-resize'");
     expect(res.body).toContain('img.offsetHeight');
+  });
+
+  test('offsets card coordinates for grouped issues', async () => {
+    const groupedIssues = [
+      { number: 1, title: 'Grouped Card', html_url: 'https://github.com/owner/repo/issues/1', labels: [
+        { name: 'Roadmap: Now', color: '2da44e' },
+        { name: 'Roadmap Group: Frontend', color: 'ff0000' }
+      ]},
+    ];
+    fetchIssues.mockResolvedValue(groupedIssues);
+    const req = createMockReq('/embed/owner/repo/ffffff/24292f');
+    const res = createMockRes();
+
+    await embedHandler(req, res);
+
+    // Now column (columnIndex=0): group header adds 35px
+    // Card y1 = 130 (column header) + 35 (group header) = 165
+    // Card y2 = 165 + 75 = 240
+    expect(res.body).toContain('coords="15,165,365,240"');
+  });
+
+  test('coordinates for ungrouped issues after groups', async () => {
+    const mixedIssues = [
+      { number: 1, title: 'Grouped', html_url: 'https://github.com/owner/repo/issues/1', labels: [
+        { name: 'Roadmap: Now', color: '2da44e' },
+        { name: 'Roadmap Group: Team A', color: 'ff0000' }
+      ]},
+      { number: 2, title: 'Ungrouped', html_url: 'https://github.com/owner/repo/issues/2', labels: [
+        { name: 'Roadmap: Now', color: '2da44e' }
+      ]},
+    ];
+    fetchIssues.mockResolvedValue(mixedIssues);
+    const req = createMockReq('/embed/owner/repo/ffffff/24292f');
+    const res = createMockRes();
+
+    await embedHandler(req, res);
+
+    // Grouped card: y1 = 130 + 35 = 165, y2 = 240
+    expect(res.body).toContain('coords="15,165,365,240"');
+    // Global layout: Team A band ends at 130+35+95=260, gap=10, Other band yStart=270
+    // Ungrouped card: y1 = 270 (Other band) + 35 (Other header) = 305, y2 = 305+75 = 380
+    expect(res.body).toContain('coords="15,305,365,380"');
   });
 });
