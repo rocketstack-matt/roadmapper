@@ -669,3 +669,197 @@ describe('fetchIssues', () => {
     );
   });
 });
+
+describe('fetchIssues with ETag caching', () => {
+  const originalEnv = process.env;
+  let mockGetCachedIssues;
+  let mockCacheIssues;
+  let mockIsCacheFresh;
+
+  beforeEach(() => {
+    jest.resetModules();
+    process.env = { ...originalEnv };
+    delete process.env.GITHUB_TOKEN;
+
+    mockGetCachedIssues = jest.fn(() => Promise.resolve(null));
+    mockCacheIssues = jest.fn(() => Promise.resolve());
+    mockIsCacheFresh = jest.fn(() => false);
+
+    jest.doMock('../lib/cache', () => ({
+      getCachedIssues: mockGetCachedIssues,
+      cacheIssues: mockCacheIssues,
+      isCacheFresh: mockIsCacheFresh,
+    }));
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
+  });
+
+  function requireFresh() {
+    const freshAxios = require('axios');
+    const { fetchIssues: freshFetchIssues } = require('../roadmap');
+    return { axios: freshAxios, fetchIssues: freshFetchIssues };
+  }
+
+  test('returns cached issues without API call when cache is fresh', async () => {
+    const cachedData = { issues: mockIssues, etag: '"abc"', cachedAt: Date.now() };
+    mockGetCachedIssues.mockResolvedValue(cachedData);
+    mockIsCacheFresh.mockReturnValue(true);
+
+    const { axios: freshAxios, fetchIssues: freshFetchIssues } = requireFresh();
+    freshAxios.get = jest.fn();
+
+    const result = await freshFetchIssues('owner', 'repo', 3600);
+
+    expect(result).toEqual(mockIssues);
+    expect(freshAxios.get).not.toHaveBeenCalled();
+    expect(mockCacheIssues).not.toHaveBeenCalled();
+  });
+
+  test('sends If-None-Match header when stale cache has ETag', async () => {
+    const cachedData = { issues: mockIssues, etag: '"etag-123"', cachedAt: 1000 };
+    mockGetCachedIssues.mockResolvedValue(cachedData);
+    mockIsCacheFresh.mockReturnValue(false);
+
+    const { axios: freshAxios, fetchIssues: freshFetchIssues } = requireFresh();
+    freshAxios.get = jest.fn().mockResolvedValue({
+      status: 304,
+      data: null,
+      headers: {},
+    });
+
+    await freshFetchIssues('owner', 'repo', 3600);
+
+    expect(freshAxios.get).toHaveBeenCalledWith(
+      'https://api.github.com/repos/owner/repo/issues?per_page=100',
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'If-None-Match': '"etag-123"' }),
+      })
+    );
+  });
+
+  test('refreshes cachedAt on 304 response and returns cached issues', async () => {
+    const cachedData = { issues: mockIssues, etag: '"etag-123"', cachedAt: 1000 };
+    mockGetCachedIssues.mockResolvedValue(cachedData);
+    mockIsCacheFresh.mockReturnValue(false);
+
+    const { axios: freshAxios, fetchIssues: freshFetchIssues } = requireFresh();
+    freshAxios.get = jest.fn().mockResolvedValue({
+      status: 304,
+      data: null,
+      headers: {},
+    });
+
+    const result = await freshFetchIssues('owner', 'repo', 3600);
+
+    expect(result).toEqual(mockIssues);
+    expect(mockCacheIssues).toHaveBeenCalledWith('owner', 'repo', mockIssues, 3600, '"etag-123"');
+  });
+
+  test('stores new data and ETag on 200 response with stale cache', async () => {
+    const cachedData = { issues: [{ old: true }], etag: '"old-etag"', cachedAt: 1000 };
+    mockGetCachedIssues.mockResolvedValue(cachedData);
+    mockIsCacheFresh.mockReturnValue(false);
+
+    const newIssues = [{ number: 99, title: 'New' }];
+
+    const { axios: freshAxios, fetchIssues: freshFetchIssues } = requireFresh();
+    freshAxios.get = jest.fn().mockResolvedValue({
+      status: 200,
+      data: newIssues,
+      headers: { etag: '"new-etag"' },
+    });
+
+    const result = await freshFetchIssues('owner', 'repo', 3600);
+
+    expect(result).toEqual(newIssues);
+    expect(mockCacheIssues).toHaveBeenCalledWith('owner', 'repo', newIssues, 3600, '"new-etag"');
+  });
+
+  test('does full fetch when stale cache has no ETag', async () => {
+    const cachedData = { issues: mockIssues, etag: null, cachedAt: 1000 };
+    mockGetCachedIssues.mockResolvedValue(cachedData);
+    mockIsCacheFresh.mockReturnValue(false);
+
+    const { axios: freshAxios, fetchIssues: freshFetchIssues } = requireFresh();
+    freshAxios.get = jest.fn().mockResolvedValue({
+      status: 200,
+      data: mockIssues,
+      headers: { etag: '"fresh-etag"' },
+    });
+
+    const result = await freshFetchIssues('owner', 'repo', 3600);
+
+    // Should NOT send If-None-Match
+    expect(freshAxios.get).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.not.objectContaining({ 'If-None-Match': expect.anything() }),
+      })
+    );
+    expect(result).toEqual(mockIssues);
+    expect(mockCacheIssues).toHaveBeenCalledWith('owner', 'repo', mockIssues, 3600, '"fresh-etag"');
+  });
+
+  test('does full fetch when no cache exists', async () => {
+    mockGetCachedIssues.mockResolvedValue(null);
+
+    const { axios: freshAxios, fetchIssues: freshFetchIssues } = requireFresh();
+    freshAxios.get = jest.fn().mockResolvedValue({
+      status: 200,
+      data: mockIssues,
+      headers: { etag: '"first-etag"' },
+    });
+
+    const result = await freshFetchIssues('owner', 'repo', 3600);
+
+    expect(result).toEqual(mockIssues);
+    expect(mockCacheIssues).toHaveBeenCalledWith('owner', 'repo', mockIssues, 3600, '"first-etag"');
+  });
+
+  test('stores null etag when response has no etag header', async () => {
+    mockGetCachedIssues.mockResolvedValue(null);
+
+    const { axios: freshAxios, fetchIssues: freshFetchIssues } = requireFresh();
+    freshAxios.get = jest.fn().mockResolvedValue({
+      status: 200,
+      data: mockIssues,
+      headers: {},
+    });
+
+    await freshFetchIssues('owner', 'repo', 3600);
+
+    expect(mockCacheIssues).toHaveBeenCalledWith('owner', 'repo', mockIssues, 3600, null);
+  });
+
+  test('includes both auth and ETag headers when GITHUB_TOKEN is set', async () => {
+    process.env.GITHUB_TOKEN = 'test-token';
+    const cachedData = { issues: mockIssues, etag: '"etag-456"', cachedAt: 1000 };
+    mockGetCachedIssues.mockResolvedValue(cachedData);
+    mockIsCacheFresh.mockReturnValue(false);
+
+    const { axios: freshAxios, fetchIssues: freshFetchIssues } = requireFresh();
+    freshAxios.get = jest.fn().mockResolvedValue({
+      status: 304,
+      data: null,
+      headers: {},
+    });
+
+    await freshFetchIssues('owner', 'repo', 3600);
+
+    expect(freshAxios.get).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'Authorization': 'Bearer test-token',
+          'If-None-Match': '"etag-456"',
+        }),
+      })
+    );
+  });
+});

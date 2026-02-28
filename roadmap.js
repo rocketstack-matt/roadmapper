@@ -290,12 +290,18 @@ const generateRoadmapSVG = (issues, bgColor, textColor) => {
 };
 
 const fetchIssues = async (owner, repo, cacheTtlSeconds) => {
+    const debug = process.env.VERCEL_ENV !== 'production';
+    const tag = `[cache ${owner}/${repo}]`;
+
     // Check cache first (if caching is available)
     if (cacheTtlSeconds) {
-        const { getCachedIssues, cacheIssues } = require('./lib/cache');
+        const { getCachedIssues, cacheIssues, isCacheFresh } = require('./lib/cache');
         const cached = await getCachedIssues(owner, repo);
-        if (cached) {
-            return cached;
+
+        // Fresh cache — return immediately, no API call
+        if (cached && isCacheFresh(cached, cacheTtlSeconds)) {
+            if (debug) console.log(`${tag} FRESH — returning cached issues (ttl=${cacheTtlSeconds}s, etag=${cached.etag})`);
+            return cached.issues;
         }
 
         const headers = {};
@@ -303,12 +309,32 @@ const fetchIssues = async (owner, repo, cacheTtlSeconds) => {
             headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
         }
 
+        // Stale cache with ETag — conditional request (free if unchanged)
+        if (cached && cached.etag) {
+            headers['If-None-Match'] = cached.etag;
+            if (debug) console.log(`${tag} STALE — sending conditional request with ETag ${cached.etag}`);
+        } else if (cached) {
+            if (debug) console.log(`${tag} STALE — no ETag, full fetch`);
+        } else {
+            if (debug) console.log(`${tag} MISS — no cache, full fetch`);
+        }
+
         const response = await axios.get(
             `https://api.github.com/repos/${owner}/${repo}/issues?per_page=100`,
-            { headers }
+            { headers, validateStatus: (status) => status === 200 || status === 304 }
         );
 
-        await cacheIssues(owner, repo, response.data, cacheTtlSeconds);
+        if (response.status === 304) {
+            // Data unchanged — refresh cachedAt, keep same issues and etag
+            if (debug) console.log(`${tag} 304 NOT MODIFIED — refreshed cachedAt (free, no rate limit cost)`);
+            await cacheIssues(owner, repo, cached.issues, cacheTtlSeconds, cached.etag);
+            return cached.issues;
+        }
+
+        // 200 — new data, extract ETag from response
+        const etag = response.headers.etag || null;
+        if (debug) console.log(`${tag} 200 OK — new data cached (etag=${etag}, issues=${response.data.length})`);
+        await cacheIssues(owner, repo, response.data, cacheTtlSeconds, etag);
         return response.data;
     }
 
