@@ -2,8 +2,8 @@ require('dotenv').config(); // Load environment variables from .env file
 
 const express = require('express');
 const path = require('path');
-const { generateRoadmapSVG, fetchIssues } = require('./roadmap');
 const indexHandler = require('./api/index');
+const roadmapHandler = require('./api/roadmap');
 const viewHandler = require('./api/view');
 const embedHandler = require('./api/embed');
 const htmlHandler = require('./api/html');
@@ -67,29 +67,16 @@ app.get('/html/:owner/:repo', (req, res) => {
     res.redirect(`/html/${owner}/${repo}/ffffff/24292f`);
 });
 
-// Roadmap generation handler
-const handleRoadmap = async (req, res) => {
-    const { owner, repo, bgColor, textColor } = req.params;
-
-    try {
-        const issues = await fetchIssues(owner, repo);
-        const svgContent = generateRoadmapSVG(issues, bgColor, textColor);
-
-        res.setHeader('Content-Type', 'image/svg+xml');
-        res.send(svgContent);
-    } catch (error) {
-        res.status(500).send('Error fetching GitHub issues');
-    }
-};
+// Roadmap SVG handler (uses same middleware-wrapped handler as serverless)
+app.get('/:owner/:repo/:bgColor/:textColor', async (req, res) => {
+    await roadmapHandler(req, res);
+});
 
 // Fallback route for /:owner/:repo (redirects to default colors)
 app.get('/:owner/:repo', (req, res) => {
     const { owner, repo } = req.params;
     res.redirect(`/${owner}/${repo}/ffffff/24292f`);
 });
-
-// Roadmap generation route
-app.get('/:owner/:repo/:bgColor/:textColor', handleRoadmap);
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);

@@ -106,7 +106,7 @@ Roadmapper requires per-repository registration. Repo owners register via the la
 - `lib/tiers.js`: Tier configuration (free: 3600s cache/60 req/hr, paid: 30s cache/10000 req/hr)
 - `lib/keys.js`: Key generation, hashing, storage, lookup, email confirmation (`confirmRegistration`)
 - `lib/verify.js`: Repo verification — fetches `.roadmapper` file, validates key, caches result
-- `lib/cache.js`: GitHub issues response caching with tier-based TTL
+- `lib/cache.js`: GitHub issues response caching with ETag support and application-level freshness
 - `lib/ratelimit.js`: Per-repo and per-IP rate limiting using `@upstash/ratelimit`
 - `lib/email.js`: Resend email client with graceful fallback (`isEmailConfigured`, `sendConfirmationEmail`)
 - `lib/middleware.js`: `withMiddleware()` HOF — auth, verification, rate limiting, error responses
@@ -128,12 +128,32 @@ The `withMiddleware(handler, options)` higher-order function wraps all API handl
 
 **Graceful fallback:** When `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are not set, middleware is skipped entirely and all endpoints work unrestricted.
 
-### Response Caching
+### Response Caching & ETag Revalidation
 
-`fetchIssues(owner, repo, cacheTtlSeconds)` supports Redis-based caching:
-- When `cacheTtlSeconds` is provided and Redis is configured: checks cache first, fetches from GitHub on miss, caches result with TTL
-- When not provided or Redis unavailable: direct GitHub fetch (original behavior)
-- Free tier: 60-minute cache TTL; paid tier (future): 30-second cache TTL
+`fetchIssues(owner, repo, cacheTtlSeconds)` supports Redis-based caching with GitHub ETag conditional requests to minimize API rate limit consumption.
+
+**Cache format:** Each entry stores `{ issues, etag, cachedAt }` with **no Redis TTL** (entries persist permanently). Freshness is checked in application code via `isCacheFresh(cacheData, ttlSeconds)` comparing `cachedAt` against the tier's soft TTL.
+
+**Cache paths in `fetchIssues`:**
+
+| Scenario | What happens | GitHub API cost |
+|----------|-------------|-----------------|
+| **FRESH** — `cachedAt` within soft TTL | Return `cached.issues` immediately | **0** |
+| **STALE + ETag → 304** | Send `If-None-Match`, GitHub confirms unchanged, refresh `cachedAt` | **0** (free) |
+| **STALE + ETag → 200** | Data changed, store new issues + new ETag | 1 request |
+| **STALE + no ETag** | Full fetch, extract ETag from response | 1 request |
+| **MISS** — no cache entry | Full fetch, extract ETag from response | 1 request |
+| **No `cacheTtlSeconds`** | Direct GitHub fetch, no caching | 1 request |
+
+**Soft TTL by tier:** Free = 3600s (60 min), Paid = 30s.
+
+**Backward compatibility:** Old cache entries (plain JSON arrays from before ETag support) are auto-wrapped as `{ issues: array, etag: null, cachedAt: 0 }` on read, making them immediately stale and triggering a fresh fetch.
+
+**Debug logging:** When `VERCEL_ENV !== 'production'` (i.e. local dev and Vercel preview deployments), `fetchIssues` logs each cache path to the console with a `[cache owner/repo]` prefix. These logs are silent in production.
+
+**Key files:**
+- `lib/cache.js`: `getCachedIssues()`, `cacheIssues()`, `isCacheFresh()` — cache read/write/freshness
+- `roadmap.js`: `fetchIssues()` — orchestrates the cache lookup, conditional request, and ETag extraction
 
 ### Redis Data Model
 
@@ -143,7 +163,7 @@ repo:{owner}/{repo}            → Hash { keyHash, tier, verifiedAt }
 repo-key:{owner}/{repo}        → String (key hash, for duplicate checking)
 repo-ttl:{owner}/{repo}        → String (TTL marker, expires after 24hr)
 confirm:{token}                → String (key hash, 24hr TTL, one-time use)
-cache:issues:{owner}/{repo}    → String (JSON issues array, TTL = tier-based)
+cache:issues:{owner}/{repo}    → String (JSON { issues, etag, cachedAt }, no TTL)
 ratelimit:*                    → Managed by @upstash/ratelimit SDK
 ```
 
@@ -184,7 +204,7 @@ The project uses **Jest** for testing. Tests live in the `tests/` directory.
 - `tests/lib/ratelimit.test.js`: Rate limit allowed/denied, tier limits
 - `tests/lib/middleware.test.js`: Middleware passthrough, unregistered error, rate limit error, req augmentation
 - `tests/lib/tiers.test.js`: Tier configuration structure
-- `tests/lib/cache.test.js`: Issue cache get/set with TTL
+- `tests/lib/cache.test.js`: Issue cache format, ETag storage, `isCacheFresh` logic
 
 ### Writing Tests
 
@@ -196,6 +216,49 @@ The project uses **Jest** for testing. Tests live in the `tests/` directory.
 - Use `createMockIssue(number, title, labelName, labelColor)` for creating test issue data
 - API endpoint handlers are tested directly with mock req/res objects (no HTTP server needed)
 - Set `process.env.UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` before requiring middleware in tests
+
+### Local Testing of Cache & ETag Paths
+
+The caching and ETag revalidation logic in `fetchIssues` requires Redis to be configured and a registered repo with a specific tier. To test these paths locally:
+
+**Prerequisites:**
+1. `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` set in `.env`
+2. `GITHUB_TOKEN` set in `.env` (optional but recommended)
+3. The target repo must be registered (has an API key in Redis and a `.roadmapper` file committed)
+
+**Tier setup:** The free tier has a 60-minute soft TTL, which is too long to observe the STALE→304 path in a testing session. Use the tier script to temporarily switch to the paid tier (30s soft TTL):
+
+```bash
+node scripts/set-tier.js <owner> <repo> paid    # switch to 30s cache TTL
+node scripts/set-tier.js <owner> <repo> free    # revert to 60-minute cache TTL
+```
+
+**Important:** `server.js` delegates the SVG endpoint to `api/roadmap.js` (wrapped with `withMiddleware`), so it uses the same caching, auth, and rate limiting as production. Without Redis credentials in `.env`, middleware is skipped entirely and `fetchIssues` receives no `cacheTtlSeconds`, bypassing all caching.
+
+**Test procedure:**
+
+1. Start the server: `npm run run`
+2. Make a request: `curl http://localhost:5002/<owner>/<repo>/ffffff/24292f`
+3. Check the server console for cache debug logs:
+   - `[cache owner/repo] MISS` — no cache entry, full fetch
+   - `[cache owner/repo] FRESH` — within soft TTL, no API call
+   - `[cache owner/repo] STALE — sending conditional request with ETag ...` — TTL expired, ETag revalidation
+   - `[cache owner/repo] 304 NOT MODIFIED` — data unchanged, free revalidation
+   - `[cache owner/repo] 200 OK — new data cached` — data changed or no prior ETag
+4. Wait for the soft TTL to expire (30s on paid tier), then request again to trigger the STALE→304 path
+5. Make another immediate request to see the FRESH path
+
+**Expected sequence for a paid-tier repo:**
+
+```
+Request 1: MISS → 200 OK (or STALE → 304/200 if cache exists from prior run)
+Request 2: FRESH (within 30s)
+-- wait 35s --
+Request 3: STALE → 304 NOT MODIFIED (data unchanged, free)
+Request 4: FRESH (cachedAt refreshed by the 304)
+```
+
+**These debug logs only appear when `VERCEL_ENV !== 'production'`** — they are active locally (where `VERCEL_ENV` is unset) and on Vercel preview deployments (where `VERCEL_ENV` is `'preview'`), but silent in production.
 
 ## API Endpoints
 
@@ -321,8 +384,9 @@ Example: `http://localhost:5002/rocketstack-matt/roadmapper/ffffff/24292f`
 - `lib/tiers.js`: Tier configuration (limits, cache TTLs)
 - `lib/keys.js`: API key generation, hashing, storage, lookup
 - `lib/verify.js`: Repo verification via `.roadmapper` file
-- `lib/cache.js`: GitHub issues response caching
+- `lib/cache.js`: GitHub issues response caching with ETag support
 - `lib/ratelimit.js`: Per-repo and per-IP rate limiting
+- `scripts/set-tier.js`: CLI utility to update a repo's tier in Redis
 - `lib/middleware.js`: `withMiddleware()` HOF wrapper
 - `server.js`: Local Express server for development
 - `vercel.json`: Serverless deployment configuration
