@@ -292,10 +292,12 @@ const generateRoadmapSVG = (issues, bgColor, textColor) => {
 const fetchIssues = async (owner, repo, cacheTtlSeconds) => {
     // Check cache first (if caching is available)
     if (cacheTtlSeconds) {
-        const { getCachedIssues, cacheIssues } = require('./lib/cache');
+        const { getCachedIssues, cacheIssues, isCacheFresh } = require('./lib/cache');
         const cached = await getCachedIssues(owner, repo);
-        if (cached) {
-            return cached;
+
+        // Fresh cache — return immediately, no API call
+        if (cached && isCacheFresh(cached, cacheTtlSeconds)) {
+            return cached.issues;
         }
 
         const headers = {};
@@ -303,12 +305,25 @@ const fetchIssues = async (owner, repo, cacheTtlSeconds) => {
             headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
         }
 
+        // Stale cache with ETag — conditional request (free if unchanged)
+        if (cached && cached.etag) {
+            headers['If-None-Match'] = cached.etag;
+        }
+
         const response = await axios.get(
             `https://api.github.com/repos/${owner}/${repo}/issues?per_page=100`,
-            { headers }
+            { headers, validateStatus: (status) => status === 200 || status === 304 }
         );
 
-        await cacheIssues(owner, repo, response.data, cacheTtlSeconds);
+        if (response.status === 304) {
+            // Data unchanged — refresh cachedAt, keep same issues and etag
+            await cacheIssues(owner, repo, cached.issues, cacheTtlSeconds, cached.etag);
+            return cached.issues;
+        }
+
+        // 200 — new data, extract ETag from response
+        const etag = response.headers.etag || null;
+        await cacheIssues(owner, repo, response.data, cacheTtlSeconds, etag);
         return response.data;
     }
 
