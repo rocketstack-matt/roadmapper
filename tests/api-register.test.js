@@ -1,4 +1,7 @@
 jest.mock('axios');
+jest.mock('../lib/github-token', () => ({
+  resolveGitHubToken: jest.fn(() => Promise.resolve({ token: null, source: 'none' })),
+}));
 jest.mock('../lib/keys', () => ({
   generateApiKey: jest.fn(() => 'rm_test1234567890abcdef12345678'),
   storeApiKey: jest.fn(() => Promise.resolve('fakehash')),

@@ -11,9 +11,14 @@ jest.mock('../../lib/ratelimit', () => ({
   checkIpRateLimit: jest.fn(() => Promise.resolve({ success: true, limit: 200, remaining: 199, reset: Date.now() + 3600000 })),
 }));
 
+jest.mock('../../lib/github-token', () => ({
+  resolveGitHubToken: jest.fn(() => Promise.resolve({ token: null, source: 'none' })),
+}));
+
 const { withMiddleware, extractOwnerRepo, getClientIp, isSvgEndpoint } = require('../../lib/middleware');
 const { verifyRepo } = require('../../lib/verify');
 const { checkRepoRateLimit, checkIpRateLimit } = require('../../lib/ratelimit');
+const { resolveGitHubToken } = require('../../lib/github-token');
 const { createMockReq, createMockRes } = require('../helpers');
 
 afterAll(() => {
@@ -26,6 +31,7 @@ beforeEach(() => {
   // Re-set default mocks after clearAllMocks resets factory implementations
   checkIpRateLimit.mockResolvedValue({ success: true, limit: 200, remaining: 199, reset: Date.now() + 3600000 });
   checkRepoRateLimit.mockResolvedValue({ success: true, limit: 60, remaining: 59, reset: Date.now() + 3600000 });
+  resolveGitHubToken.mockResolvedValue({ token: null, source: 'none' });
 });
 
 describe('lib/middleware', () => {
@@ -224,6 +230,35 @@ describe('lib/middleware', () => {
 
       expect(verifyRepo).not.toHaveBeenCalled();
       expect(innerHandler).toHaveBeenCalled();
+    });
+
+    test('attaches githubToken to request on successful verification', async () => {
+      verifyRepo.mockResolvedValue({ verified: true, tier: 'free' });
+      resolveGitHubToken.mockResolvedValue({ token: 'app-token-123', source: 'app' });
+
+      const innerHandler = jest.fn();
+      const handler = withMiddleware(innerHandler);
+
+      const req = createMockReq('/owner/repo/ffffff/24292f');
+      const res = createMockRes();
+      await handler(req, res);
+
+      expect(resolveGitHubToken).toHaveBeenCalledWith('owner', 'repo');
+      expect(req.githubToken).toBe('app-token-123');
+    });
+
+    test('attaches null githubToken when no token available', async () => {
+      verifyRepo.mockResolvedValue({ verified: true, tier: 'free' });
+      resolveGitHubToken.mockResolvedValue({ token: null, source: 'none' });
+
+      const innerHandler = jest.fn();
+      const handler = withMiddleware(innerHandler);
+
+      const req = createMockReq('/owner/repo/ffffff/24292f');
+      const res = createMockRes();
+      await handler(req, res);
+
+      expect(req.githubToken).toBeNull();
     });
   });
 });

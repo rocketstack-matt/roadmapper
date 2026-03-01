@@ -30,7 +30,7 @@ const handler = async (req, res) => {
   }
 
   try {
-    const issues = await fetchIssues(owner, repo, req.cacheTtl);
+    const issues = await fetchIssues(owner, repo, req.cacheTtl, req.githubToken);
     const svgContent = generateRoadmapSVG(issues, bgColor, textColor);
 
     trackEvent('roadmap_view', {

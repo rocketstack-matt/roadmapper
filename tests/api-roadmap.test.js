@@ -34,7 +34,7 @@ describe('api/roadmap', () => {
 
     await roadmapHandler(req, res);
 
-    expect(fetchIssues).toHaveBeenCalledWith('facebook', 'react', undefined);
+    expect(fetchIssues).toHaveBeenCalledWith('facebook', 'react', undefined, undefined);
   });
 
   test('passes bgColor and textColor to generateRoadmapSVG', async () => {
@@ -87,7 +87,7 @@ describe('api/roadmap', () => {
 
     await roadmapHandler(req, res);
 
-    expect(fetchIssues).toHaveBeenCalledWith('owner', 'repo', undefined);
+    expect(fetchIssues).toHaveBeenCalledWith('owner', 'repo', undefined, undefined);
     expect(res.headers['Content-Type']).toBe('image/svg+xml');
   });
 });

@@ -301,9 +301,16 @@ const stripIssueFields = (issues) => {
     }));
 };
 
-const fetchIssues = async (owner, repo, cacheTtlSeconds) => {
+const fetchIssues = async (owner, repo, cacheTtlSeconds, githubToken) => {
     const debug = process.env.VERCEL_ENV !== 'production';
     const tag = `[cache ${owner}/${repo}]`;
+
+    // Resolve the auth token: explicit param > env var > none
+    const resolveAuthToken = () => {
+        if (githubToken) return githubToken;
+        if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN;
+        return null;
+    };
 
     // Check cache first (if caching is available)
     if (cacheTtlSeconds) {
@@ -317,8 +324,9 @@ const fetchIssues = async (owner, repo, cacheTtlSeconds) => {
         }
 
         const headers = {};
-        if (process.env.GITHUB_TOKEN) {
-            headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
+        const authToken = resolveAuthToken();
+        if (authToken) {
+            headers['Authorization'] = `Bearer ${authToken}`;
         }
 
         // Stale cache with ETag — conditional request (free if unchanged)
@@ -354,8 +362,9 @@ const fetchIssues = async (owner, repo, cacheTtlSeconds) => {
 
     // No caching — fetch directly from GitHub
     const headers = {};
-    if (process.env.GITHUB_TOKEN) {
-        headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
+    const authToken = resolveAuthToken();
+    if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
     }
 
     const response = await axios.get(

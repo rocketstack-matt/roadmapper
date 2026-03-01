@@ -9,6 +9,8 @@ const embedHandler = require('./api/embed');
 const htmlHandler = require('./api/html');
 const registerHandler = require('./api/register');
 const confirmHandler = require('./api/confirm');
+const webhookHandler = require('./api/github/webhook');
+const setupHandler = require('./api/github/setup');
 
 const app = express();
 const PORT = process.env.PORT || 5002;
@@ -32,6 +34,16 @@ app.post('/api/register', async (req, res) => {
 // Email confirmation endpoint
 app.get('/api/confirm', async (req, res) => {
     await confirmHandler(req, res);
+});
+
+// GitHub App webhook endpoint
+app.post('/api/github/webhook', async (req, res) => {
+    await webhookHandler(req, res);
+});
+
+// GitHub App post-installation redirect
+app.get('/api/github/setup', async (req, res) => {
+    await setupHandler(req, res);
 });
 
 // View page handler

@@ -7,9 +7,19 @@ jest.mock('../../lib/redis', () => ({
 
 jest.mock('axios');
 
+jest.mock('../../lib/github-app', () => ({
+  isGitHubAppConfigured: jest.fn(() => false),
+  getInstallationId: jest.fn(() => Promise.resolve(null)),
+}));
+
+jest.mock('../../lib/github-token', () => ({
+  resolveGitHubToken: jest.fn(() => Promise.resolve({ token: null, source: 'none' })),
+}));
+
 const redis = require('../../lib/redis');
 const axios = require('axios');
-const { verifyRepo, fetchRoadmapperFile, getCachedVerification, isVerificationStale } = require('../../lib/verify');
+const { isGitHubAppConfigured, getInstallationId } = require('../../lib/github-app');
+const { verifyRepo, verifyRepoViaApp, fetchRoadmapperFile, getCachedVerification, isVerificationStale } = require('../../lib/verify');
 const { hashApiKey } = require('../../lib/keys');
 
 beforeEach(() => {
@@ -198,6 +208,60 @@ describe('lib/verify', () => {
 
       const result = await verifyRepo('owner', 'repo');
       expect(result.verified).toBe(true);
+    });
+
+    test('verifies via GitHub App when installed', async () => {
+      redis.hgetall.mockResolvedValueOnce(null); // No cached verification
+      isGitHubAppConfigured.mockReturnValue(true);
+      getInstallationId.mockResolvedValue('42');
+
+      const result = await verifyRepo('owner', 'repo');
+      expect(result).toEqual({ verified: true, tier: 'free' });
+      // Should not fetch .roadmapper file
+      expect(axios.get).not.toHaveBeenCalled();
+      // Should cache the verification
+      expect(redis.hset).toHaveBeenCalledWith(
+        'repo:owner/repo',
+        expect.objectContaining({ tier: 'free' })
+      );
+    });
+
+    test('falls back to .roadmapper when app not installed', async () => {
+      redis.hgetall.mockResolvedValueOnce(null); // No cached verification
+      isGitHubAppConfigured.mockReturnValue(true);
+      getInstallationId.mockResolvedValue(null);
+      // .roadmapper file fetch succeeds
+      const base64Content = Buffer.from(validKey).toString('base64');
+      axios.get.mockResolvedValueOnce({ data: { content: base64Content } });
+      redis.hgetall.mockResolvedValueOnce({ owner: 'owner', repo: 'repo', tier: 'free' });
+
+      const result = await verifyRepo('owner', 'repo');
+      expect(result).toEqual({ verified: true, tier: 'free' });
+    });
+  });
+
+  describe('verifyRepoViaApp', () => {
+    test('returns verified when app is configured and installed', async () => {
+      isGitHubAppConfigured.mockReturnValue(true);
+      getInstallationId.mockResolvedValue('42');
+
+      const result = await verifyRepoViaApp('owner', 'repo');
+      expect(result).toEqual({ verified: true, tier: 'free' });
+    });
+
+    test('returns not verified when app is not configured', async () => {
+      isGitHubAppConfigured.mockReturnValue(false);
+
+      const result = await verifyRepoViaApp('owner', 'repo');
+      expect(result).toEqual({ verified: false });
+    });
+
+    test('returns not verified when app is configured but not installed', async () => {
+      isGitHubAppConfigured.mockReturnValue(true);
+      getInstallationId.mockResolvedValue(null);
+
+      const result = await verifyRepoViaApp('owner', 'repo');
+      expect(result).toEqual({ verified: false });
     });
   });
 });

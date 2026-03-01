@@ -30,6 +30,14 @@
       "use": "@vercel/node"
     },
     {
+      "src": "api/github/webhook.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/github/setup.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "public/**",
       "use": "@vercel/static"
     }
@@ -51,6 +59,15 @@
     {
       "src": "/api/confirm",
       "dest": "/api/confirm.js"
+    },
+    {
+      "src": "/api/github/webhook",
+      "methods": ["POST"],
+      "dest": "/api/github/webhook.js"
+    },
+    {
+      "src": "/api/github/setup",
+      "dest": "/api/github/setup.js"
     },
     {
       "src": "/",

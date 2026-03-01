@@ -886,7 +886,12 @@ const handler = async (req, res) => {
         <span class="step-number">1</span>
         <div class="step-body">
           <h3 class="step-title">Register your repository</h3>
-          <p class="step-description">Enter your GitHub repo details to get an API key. This key identifies your repository and enables roadmap generation.</p>
+          <p class="step-description">Enter your GitHub repo details to get an API key, or install the GitHub App for automatic setup.</p>
+
+          <div style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
+            <button onclick="document.getElementById('register-form').style.display='block';document.getElementById('github-app-info').style.display='none';this.classList.add('active');this.nextElementSibling.classList.remove('active');" class="tab-btn active" style="padding: 8px 20px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 14px; font-weight: 500;">API Key</button>
+            <button onclick="document.getElementById('register-form').style.display='none';document.getElementById('github-app-info').style.display='block';this.classList.add('active');this.previousElementSibling.classList.remove('active');" class="tab-btn" style="padding: 8px 20px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 14px; font-weight: 500;">GitHub App</button>
+          </div>
 
           <div class="register-card">
             <form id="register-form" onsubmit="handleRegister(event)">
@@ -927,6 +932,17 @@ const handler = async (req, res) => {
                 </div>
               </div>
             </div>
+          </div>
+
+          <div id="github-app-info" class="register-card" style="display: none;">
+            <h4 style="margin: 0 0 12px 0; font-size: 16px; color: var(--text-primary);">Install the Roadmapper GitHub App</h4>
+            <p style="margin: 0 0 16px 0; font-size: 14px; color: var(--text-secondary); line-height: 1.6;">Install our GitHub App on your repository for automatic authentication. No API key or <code>.roadmapper</code> file needed — just install and go.</p>
+            <ul style="margin: 0 0 16px 0; padding-left: 20px; font-size: 14px; color: var(--text-secondary); line-height: 1.8;">
+              <li>Read-only access to issues and metadata</li>
+              <li>Per-repo rate limits (5,000 req/hr each)</li>
+              <li>No shared token bottleneck</li>
+            </ul>
+            <a href="https://github.com/apps/roadmapper-app" target="_blank" rel="noopener noreferrer" class="register-btn" style="display: inline-block; text-align: center; text-decoration: none;">Install GitHub App</a>
           </div>
         </div>
       </div>
