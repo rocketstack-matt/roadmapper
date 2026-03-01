@@ -289,6 +289,18 @@ const generateRoadmapSVG = (issues, bgColor, textColor) => {
   `;
 };
 
+const stripIssueFields = (issues) => {
+    return issues.map(issue => ({
+        number: issue.number,
+        title: issue.title,
+        html_url: issue.html_url,
+        labels: issue.labels.map(label => ({
+            name: label.name,
+            color: label.color,
+        })),
+    }));
+};
+
 const fetchIssues = async (owner, repo, cacheTtlSeconds) => {
     const debug = process.env.VERCEL_ENV !== 'production';
     const tag = `[cache ${owner}/${repo}]`;
@@ -301,7 +313,7 @@ const fetchIssues = async (owner, repo, cacheTtlSeconds) => {
         // Fresh cache — return immediately, no API call
         if (cached && isCacheFresh(cached, cacheTtlSeconds)) {
             if (debug) console.log(`${tag} FRESH — returning cached issues (ttl=${cacheTtlSeconds}s, etag=${cached.etag})`);
-            return cached.issues;
+            return stripIssueFields(cached.issues);
         }
 
         const headers = {};
@@ -327,15 +339,17 @@ const fetchIssues = async (owner, repo, cacheTtlSeconds) => {
         if (response.status === 304) {
             // Data unchanged — refresh cachedAt, keep same issues and etag
             if (debug) console.log(`${tag} 304 NOT MODIFIED — refreshed cachedAt (free, no rate limit cost)`);
-            await cacheIssues(owner, repo, cached.issues, cacheTtlSeconds, cached.etag);
-            return cached.issues;
+            const stripped = stripIssueFields(cached.issues);
+            await cacheIssues(owner, repo, stripped, cacheTtlSeconds, cached.etag);
+            return stripped;
         }
 
         // 200 — new data, extract ETag from response
         const etag = response.headers.etag || null;
         if (debug) console.log(`${tag} 200 OK — new data cached (etag=${etag}, issues=${response.data.length})`);
-        await cacheIssues(owner, repo, response.data, cacheTtlSeconds, etag);
-        return response.data;
+        const stripped = stripIssueFields(response.data);
+        await cacheIssues(owner, repo, stripped, cacheTtlSeconds, etag);
+        return stripped;
     }
 
     // No caching — fetch directly from GitHub
@@ -348,12 +362,13 @@ const fetchIssues = async (owner, repo, cacheTtlSeconds) => {
         `https://api.github.com/repos/${owner}/${repo}/issues?per_page=100`,
         { headers }
     );
-    return response.data;
+    return stripIssueFields(response.data);
 };
 
 module.exports = {
     generateRoadmapSVG,
     fetchIssues,
+    stripIssueFields,
     validateHexColor,
     normalizeHex,
     hexToRgba,

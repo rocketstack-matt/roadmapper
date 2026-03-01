@@ -2,6 +2,7 @@ const axios = require('axios');
 const {
   generateRoadmapSVG,
   fetchIssues,
+  stripIssueFields,
   validateHexColor,
   normalizeHex,
   hexToRgba,
@@ -30,6 +31,13 @@ const mockIssues = [
   createMockIssue(1, 'Feature A', 'Roadmap: Now', '2da44e'),
   createMockIssue(2, 'Feature B', 'Roadmap: Next', 'fb8500'),
   createMockIssue(3, 'Feature C', 'Roadmap: Later', '8b949e'),
+];
+
+// Expected shape after stripIssueFields (no extra fields like labelColor)
+const strippedMockIssues = [
+  { number: 1, title: 'Feature A', html_url: 'https://github.com/owner/repo/issues/1', labels: [{ name: 'Roadmap: Now', color: '2da44e' }] },
+  { number: 2, title: 'Feature B', html_url: 'https://github.com/owner/repo/issues/2', labels: [{ name: 'Roadmap: Next', color: 'fb8500' }] },
+  { number: 3, title: 'Feature C', html_url: 'https://github.com/owner/repo/issues/3', labels: [{ name: 'Roadmap: Later', color: '8b949e' }] },
 ];
 
 describe('validateHexColor', () => {
@@ -603,6 +611,71 @@ describe('generateRoadmapSVG with groups', () => {
   });
 });
 
+describe('stripIssueFields', () => {
+  test('keeps only number, title, html_url, and labels', () => {
+    const raw = [{
+      number: 1,
+      title: 'Feature A',
+      html_url: 'https://github.com/owner/repo/issues/1',
+      labels: [{ name: 'Roadmap: Now', color: '2da44e', id: 123, description: 'desc' }],
+      body: 'Full body text',
+      user: { login: 'user1' },
+      assignees: [{ login: 'user2' }],
+      milestone: { title: 'v1.0' },
+      reactions: { total_count: 5 },
+      comments: 3,
+      state: 'open',
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-02T00:00:00Z',
+    }];
+    const result = stripIssueFields(raw);
+    expect(result).toEqual([{
+      number: 1,
+      title: 'Feature A',
+      html_url: 'https://github.com/owner/repo/issues/1',
+      labels: [{ name: 'Roadmap: Now', color: '2da44e' }],
+    }]);
+  });
+
+  test('strips extra fields from labels', () => {
+    const raw = [{
+      number: 1,
+      title: 'Test',
+      html_url: 'https://github.com/o/r/issues/1',
+      labels: [
+        { name: 'Roadmap: Now', color: '2da44e', id: 100, node_id: 'abc', url: 'https://api.github.com/labels/1', description: 'Now items', default: false },
+        { name: 'Roadmap Group: API', color: 'ff0000', id: 200, node_id: 'def', url: 'https://api.github.com/labels/2', description: 'API group', default: false },
+      ],
+    }];
+    const result = stripIssueFields(raw);
+    expect(result[0].labels).toEqual([
+      { name: 'Roadmap: Now', color: '2da44e' },
+      { name: 'Roadmap Group: API', color: 'ff0000' },
+    ]);
+  });
+
+  test('handles empty array', () => {
+    expect(stripIssueFields([])).toEqual([]);
+  });
+
+  test('handles multiple issues', () => {
+    const raw = [
+      { number: 1, title: 'A', html_url: 'u/1', labels: [{ name: 'l1', color: 'aaa' }], body: 'x' },
+      { number: 2, title: 'B', html_url: 'u/2', labels: [], body: 'y' },
+    ];
+    const result = stripIssueFields(raw);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual({ number: 1, title: 'A', html_url: 'u/1', labels: [{ name: 'l1', color: 'aaa' }] });
+    expect(result[1]).toEqual({ number: 2, title: 'B', html_url: 'u/2', labels: [] });
+  });
+
+  test('handles issue with no extra fields', () => {
+    const minimal = [{ number: 1, title: 'A', html_url: 'u/1', labels: [{ name: 'l1', color: 'aaa' }] }];
+    const result = stripIssueFields(minimal);
+    expect(result).toEqual(minimal);
+  });
+});
+
 describe('fetchIssues', () => {
   const originalEnv = process.env;
 
@@ -616,7 +689,7 @@ describe('fetchIssues', () => {
     process.env = originalEnv;
   });
 
-  test('fetches issues from GitHub API', async () => {
+  test('fetches issues from GitHub API and strips extra fields', async () => {
     axios.get.mockResolvedValue({ data: mockIssues });
 
     const issues = await fetchIssues('owner', 'repo');
@@ -625,7 +698,7 @@ describe('fetchIssues', () => {
       'https://api.github.com/repos/owner/repo/issues?per_page=100',
       { headers: {} }
     );
-    expect(issues).toEqual(mockIssues);
+    expect(issues).toEqual(strippedMockIssues);
   });
 
   test('includes auth header when GITHUB_TOKEN is set', async () => {
@@ -667,6 +740,33 @@ describe('fetchIssues', () => {
       'https://api.github.com/repos/facebook/react/issues?per_page=100',
       expect.any(Object)
     );
+  });
+
+  test('strips extra fields from returned issues', async () => {
+    const rawApiIssues = [{
+      number: 1,
+      title: 'Feature A',
+      html_url: 'https://github.com/owner/repo/issues/1',
+      labels: [{ name: 'Roadmap: Now', color: '2da44e', id: 123, description: 'desc' }],
+      body: 'Full body text',
+      user: { login: 'user1' },
+      state: 'open',
+    }];
+    axios.get.mockResolvedValue({ data: rawApiIssues });
+
+    const issues = await fetchIssues('owner', 'repo');
+
+    expect(issues).toEqual([{
+      number: 1,
+      title: 'Feature A',
+      html_url: 'https://github.com/owner/repo/issues/1',
+      labels: [{ name: 'Roadmap: Now', color: '2da44e' }],
+    }]);
+    expect(issues[0].body).toBeUndefined();
+    expect(issues[0].user).toBeUndefined();
+    expect(issues[0].state).toBeUndefined();
+    expect(issues[0].labels[0].id).toBeUndefined();
+    expect(issues[0].labels[0].description).toBeUndefined();
   });
 });
 
@@ -716,7 +816,7 @@ describe('fetchIssues with ETag caching', () => {
 
     const result = await freshFetchIssues('owner', 'repo', 3600);
 
-    expect(result).toEqual(mockIssues);
+    expect(result).toEqual(strippedMockIssues);
     expect(freshAxios.get).not.toHaveBeenCalled();
     expect(mockCacheIssues).not.toHaveBeenCalled();
   });
@@ -743,7 +843,7 @@ describe('fetchIssues with ETag caching', () => {
     );
   });
 
-  test('refreshes cachedAt on 304 response and returns cached issues', async () => {
+  test('refreshes cachedAt on 304 response and returns stripped cached issues', async () => {
     const cachedData = { issues: mockIssues, etag: '"etag-123"', cachedAt: 1000 };
     mockGetCachedIssues.mockResolvedValue(cachedData);
     mockIsCacheFresh.mockReturnValue(false);
@@ -757,16 +857,17 @@ describe('fetchIssues with ETag caching', () => {
 
     const result = await freshFetchIssues('owner', 'repo', 3600);
 
-    expect(result).toEqual(mockIssues);
-    expect(mockCacheIssues).toHaveBeenCalledWith('owner', 'repo', mockIssues, 3600, '"etag-123"');
+    expect(result).toEqual(strippedMockIssues);
+    expect(mockCacheIssues).toHaveBeenCalledWith('owner', 'repo', strippedMockIssues, 3600, '"etag-123"');
   });
 
   test('stores new data and ETag on 200 response with stale cache', async () => {
-    const cachedData = { issues: [{ old: true }], etag: '"old-etag"', cachedAt: 1000 };
+    const cachedData = { issues: [{ number: 1, title: 'Old', html_url: 'u/1', labels: [] }], etag: '"old-etag"', cachedAt: 1000 };
     mockGetCachedIssues.mockResolvedValue(cachedData);
     mockIsCacheFresh.mockReturnValue(false);
 
-    const newIssues = [{ number: 99, title: 'New' }];
+    const newIssues = [{ number: 99, title: 'New', html_url: 'https://github.com/owner/repo/issues/99', labels: [{ name: 'bug', color: 'd73a4a', id: 1 }], body: 'text' }];
+    const strippedNewIssues = [{ number: 99, title: 'New', html_url: 'https://github.com/owner/repo/issues/99', labels: [{ name: 'bug', color: 'd73a4a' }] }];
 
     const { axios: freshAxios, fetchIssues: freshFetchIssues } = requireFresh();
     freshAxios.get = jest.fn().mockResolvedValue({
@@ -777,8 +878,8 @@ describe('fetchIssues with ETag caching', () => {
 
     const result = await freshFetchIssues('owner', 'repo', 3600);
 
-    expect(result).toEqual(newIssues);
-    expect(mockCacheIssues).toHaveBeenCalledWith('owner', 'repo', newIssues, 3600, '"new-etag"');
+    expect(result).toEqual(strippedNewIssues);
+    expect(mockCacheIssues).toHaveBeenCalledWith('owner', 'repo', strippedNewIssues, 3600, '"new-etag"');
   });
 
   test('does full fetch when stale cache has no ETag', async () => {
@@ -802,8 +903,8 @@ describe('fetchIssues with ETag caching', () => {
         headers: expect.not.objectContaining({ 'If-None-Match': expect.anything() }),
       })
     );
-    expect(result).toEqual(mockIssues);
-    expect(mockCacheIssues).toHaveBeenCalledWith('owner', 'repo', mockIssues, 3600, '"fresh-etag"');
+    expect(result).toEqual(strippedMockIssues);
+    expect(mockCacheIssues).toHaveBeenCalledWith('owner', 'repo', strippedMockIssues, 3600, '"fresh-etag"');
   });
 
   test('does full fetch when no cache exists', async () => {
@@ -818,8 +919,8 @@ describe('fetchIssues with ETag caching', () => {
 
     const result = await freshFetchIssues('owner', 'repo', 3600);
 
-    expect(result).toEqual(mockIssues);
-    expect(mockCacheIssues).toHaveBeenCalledWith('owner', 'repo', mockIssues, 3600, '"first-etag"');
+    expect(result).toEqual(strippedMockIssues);
+    expect(mockCacheIssues).toHaveBeenCalledWith('owner', 'repo', strippedMockIssues, 3600, '"first-etag"');
   });
 
   test('stores null etag when response has no etag header', async () => {
@@ -834,7 +935,7 @@ describe('fetchIssues with ETag caching', () => {
 
     await freshFetchIssues('owner', 'repo', 3600);
 
-    expect(mockCacheIssues).toHaveBeenCalledWith('owner', 'repo', mockIssues, 3600, null);
+    expect(mockCacheIssues).toHaveBeenCalledWith('owner', 'repo', strippedMockIssues, 3600, null);
   });
 
   test('includes both auth and ETag headers when GITHUB_TOKEN is set', async () => {
@@ -861,5 +962,46 @@ describe('fetchIssues with ETag caching', () => {
         }),
       })
     );
+  });
+
+  test('strips extra fields from fresh cached issues', async () => {
+    const rawCachedIssues = [{
+      number: 1, title: 'A', html_url: 'u/1',
+      labels: [{ name: 'Roadmap: Now', color: '2da44e', id: 100 }],
+      body: 'cached body', user: { login: 'x' },
+    }];
+    const cachedData = { issues: rawCachedIssues, etag: '"e"', cachedAt: Date.now() };
+    mockGetCachedIssues.mockResolvedValue(cachedData);
+    mockIsCacheFresh.mockReturnValue(true);
+
+    const { fetchIssues: freshFetchIssues } = requireFresh();
+    const result = await freshFetchIssues('owner', 'repo', 3600);
+
+    expect(result).toEqual([{
+      number: 1, title: 'A', html_url: 'u/1',
+      labels: [{ name: 'Roadmap: Now', color: '2da44e' }],
+    }]);
+    expect(result[0].body).toBeUndefined();
+    expect(result[0].user).toBeUndefined();
+  });
+
+  test('strips extra fields on 304 response path', async () => {
+    const rawCachedIssues = [{
+      number: 2, title: 'B', html_url: 'u/2',
+      labels: [{ name: 'bug', color: 'd73a4a', id: 200, description: 'Bug' }],
+      body: 'text', state: 'open',
+    }];
+    const cachedData = { issues: rawCachedIssues, etag: '"etag-304"', cachedAt: 1000 };
+    mockGetCachedIssues.mockResolvedValue(cachedData);
+    mockIsCacheFresh.mockReturnValue(false);
+
+    const { axios: freshAxios, fetchIssues: freshFetchIssues } = requireFresh();
+    freshAxios.get = jest.fn().mockResolvedValue({ status: 304, data: null, headers: {} });
+
+    const result = await freshFetchIssues('owner', 'repo', 3600);
+
+    const expected = [{ number: 2, title: 'B', html_url: 'u/2', labels: [{ name: 'bug', color: 'd73a4a' }] }];
+    expect(result).toEqual(expected);
+    expect(mockCacheIssues).toHaveBeenCalledWith('owner', 'repo', expected, 3600, '"etag-304"');
   });
 });
