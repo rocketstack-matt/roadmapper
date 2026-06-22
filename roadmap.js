@@ -8,6 +8,11 @@ const INTER_GROUP_GAP = 10;
 const GROUP_LABEL_PREFIX = 'Roadmap Group: ';
 const UNGROUPED_LABEL = 'Other';
 
+// The labels that classify an issue into a roadmap column. fetchIssues queries
+// GitHub for each of these separately (the labels query param is AND-only, so
+// they can't be OR'd in one request) and merges the results.
+const ROADMAP_LABELS = ['Roadmap: Now', 'Roadmap: Next', 'Roadmap: Later'];
+
 // Validate hex color (3 or 6 digits)
 const validateHexColor = (color) => {
   if (!color) return null;
@@ -289,6 +294,9 @@ const generateRoadmapSVG = (issues, bgColor, textColor) => {
   `;
 };
 
+// Keep only the fields the renderer needs (number, title, html_url, and label
+// name/color). Applied before caching/returning to cut Redis memory and
+// network transfer (~90% payload reduction for typical repos).
 const stripIssueFields = (issues) => {
     return issues.map(issue => ({
         number: issue.number,
@@ -299,6 +307,49 @@ const stripIssueFields = (issues) => {
             color: label.color,
         })),
     }));
+};
+
+// Fetch every open issue carrying a given label, following pagination until a
+// page returns fewer than per_page results. The GitHub /issues endpoint also
+// returns pull requests (PRs are issues in GitHub's model), so items with a
+// `pull_request` field are excluded — only real issues belong on the roadmap.
+const fetchIssuesForLabel = async (owner, repo, label, headers) => {
+    const issues = [];
+    let page = 1;
+    while (true) {
+        const response = await axios.get(
+            `https://api.github.com/repos/${owner}/${repo}/issues?state=open&labels=${encodeURIComponent(label)}&per_page=100&page=${page}`,
+            { headers }
+        );
+        issues.push(...response.data.filter(issue => !issue.pull_request));
+        // Paginate on the raw page size — PRs still count toward GitHub's page.
+        if (response.data.length < 100) break;
+        page++;
+    }
+    return issues;
+};
+
+// Fetch the open issues for every roadmap label and merge them, deduping by
+// issue number (an issue may carry more than one roadmap label). The merged
+// result is stripped to the fields the renderer needs before being returned.
+const fetchRoadmapIssues = async (owner, repo) => {
+    const headers = {};
+    if (process.env.GITHUB_TOKEN) {
+        headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
+    }
+
+    // Fetch the (small, fixed) label set concurrently to cut latency.
+    const perLabel = await Promise.all(
+        ROADMAP_LABELS.map(label => fetchIssuesForLabel(owner, repo, label, headers))
+    );
+
+    const byNumber = new Map();
+    for (const issues of perLabel) {
+        for (const issue of issues) {
+            byNumber.set(issue.number, issue);
+        }
+    }
+    return stripIssueFields(Array.from(byNumber.values()));
 };
 
 const fetchIssues = async (owner, repo, cacheTtlSeconds) => {
@@ -312,57 +363,20 @@ const fetchIssues = async (owner, repo, cacheTtlSeconds) => {
 
         // Fresh cache — return immediately, no API call
         if (cached && isCacheFresh(cached, cacheTtlSeconds)) {
-            if (debug) console.log(`${tag} FRESH — returning cached issues (ttl=${cacheTtlSeconds}s, etag=${cached.etag})`);
+            if (debug) console.log(`${tag} FRESH — returning cached issues (ttl=${cacheTtlSeconds}s)`);
+            // Strip on read too, in case the entry was cached before stripping existed.
             return stripIssueFields(cached.issues);
         }
 
-        const headers = {};
-        if (process.env.GITHUB_TOKEN) {
-            headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
-        }
-
-        // Stale cache with ETag — conditional request (free if unchanged)
-        if (cached && cached.etag) {
-            headers['If-None-Match'] = cached.etag;
-            if (debug) console.log(`${tag} STALE — sending conditional request with ETag ${cached.etag}`);
-        } else if (cached) {
-            if (debug) console.log(`${tag} STALE — no ETag, full fetch`);
-        } else {
-            if (debug) console.log(`${tag} MISS — no cache, full fetch`);
-        }
-
-        const response = await axios.get(
-            `https://api.github.com/repos/${owner}/${repo}/issues?per_page=100`,
-            { headers, validateStatus: (status) => status === 200 || status === 304 }
-        );
-
-        if (response.status === 304) {
-            // Data unchanged — refresh cachedAt, keep same issues and etag
-            if (debug) console.log(`${tag} 304 NOT MODIFIED — refreshed cachedAt (free, no rate limit cost)`);
-            const stripped = stripIssueFields(cached.issues);
-            await cacheIssues(owner, repo, stripped, cacheTtlSeconds, cached.etag);
-            return stripped;
-        }
-
-        // 200 — new data, extract ETag from response
-        const etag = response.headers.etag || null;
-        if (debug) console.log(`${tag} 200 OK — new data cached (etag=${etag}, issues=${response.data.length})`);
-        const stripped = stripIssueFields(response.data);
-        await cacheIssues(owner, repo, stripped, cacheTtlSeconds, etag);
-        return stripped;
+        if (debug) console.log(`${tag} ${cached ? 'STALE' : 'MISS'} — fetching roadmap issues`);
+        const issues = await fetchRoadmapIssues(owner, repo);
+        if (debug) console.log(`${tag} fetched ${issues.length} roadmap issues — caching`);
+        await cacheIssues(owner, repo, issues, cacheTtlSeconds);
+        return issues;
     }
 
     // No caching — fetch directly from GitHub
-    const headers = {};
-    if (process.env.GITHUB_TOKEN) {
-        headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
-    }
-
-    const response = await axios.get(
-        `https://api.github.com/repos/${owner}/${repo}/issues?per_page=100`,
-        { headers }
-    );
-    return stripIssueFields(response.data);
+    return fetchRoadmapIssues(owner, repo);
 };
 
 module.exports = {
