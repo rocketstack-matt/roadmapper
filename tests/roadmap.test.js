@@ -800,6 +800,22 @@ describe('fetchIssues (no caching)', () => {
     expect(issues[0].number).toBe(42);
   });
 
+  test('excludes pull requests that carry a roadmap label', async () => {
+    const realIssue = createMockIssue(1, 'Real issue', 'Roadmap: Now', '2da44e');
+    const prItem = {
+      number: 2,
+      title: 'A PR labelled Roadmap: Now',
+      html_url: 'https://github.com/owner/repo/pull/2',
+      labels: [{ name: 'Roadmap: Now', color: '2da44e' }],
+      pull_request: { url: 'https://api.github.com/repos/owner/repo/pulls/2' },
+    };
+    mockByLabel({ now: { 1: [realIssue, prItem] } });
+
+    const issues = await fetchIssues('owner', 'repo');
+
+    expect(issues.map(i => i.number)).toEqual([1]);
+  });
+
   test('throws when a GitHub API call fails', async () => {
     axios.get.mockRejectedValue(new Error('API Error'));
 

@@ -310,7 +310,9 @@ const stripIssueFields = (issues) => {
 };
 
 // Fetch every open issue carrying a given label, following pagination until a
-// page returns fewer than per_page results.
+// page returns fewer than per_page results. The GitHub /issues endpoint also
+// returns pull requests (PRs are issues in GitHub's model), so items with a
+// `pull_request` field are excluded — only real issues belong on the roadmap.
 const fetchIssuesForLabel = async (owner, repo, label, headers) => {
     const issues = [];
     let page = 1;
@@ -319,7 +321,8 @@ const fetchIssuesForLabel = async (owner, repo, label, headers) => {
             `https://api.github.com/repos/${owner}/${repo}/issues?state=open&labels=${encodeURIComponent(label)}&per_page=100&page=${page}`,
             { headers }
         );
-        issues.push(...response.data);
+        issues.push(...response.data.filter(issue => !issue.pull_request));
+        // Paginate on the raw page size — PRs still count toward GitHub's page.
         if (response.data.length < 100) break;
         page++;
     }
@@ -335,9 +338,13 @@ const fetchRoadmapIssues = async (owner, repo) => {
         headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
     }
 
+    // Fetch the (small, fixed) label set concurrently to cut latency.
+    const perLabel = await Promise.all(
+        ROADMAP_LABELS.map(label => fetchIssuesForLabel(owner, repo, label, headers))
+    );
+
     const byNumber = new Map();
-    for (const label of ROADMAP_LABELS) {
-        const issues = await fetchIssuesForLabel(owner, repo, label, headers);
+    for (const issues of perLabel) {
         for (const issue of issues) {
             byNumber.set(issue.number, issue);
         }
