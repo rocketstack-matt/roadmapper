@@ -2,6 +2,7 @@ const axios = require('axios');
 const {
   generateRoadmapSVG,
   fetchIssues,
+  stripIssueFields,
   validateHexColor,
   normalizeHex,
   hexToRgba,
@@ -603,6 +604,71 @@ describe('generateRoadmapSVG with groups', () => {
   });
 });
 
+describe('stripIssueFields', () => {
+  test('keeps only number, title, html_url, and labels', () => {
+    const raw = [{
+      number: 1,
+      title: 'Feature A',
+      html_url: 'https://github.com/owner/repo/issues/1',
+      labels: [{ name: 'Roadmap: Now', color: '2da44e', id: 123, description: 'desc' }],
+      body: 'Full body text',
+      user: { login: 'user1' },
+      assignees: [{ login: 'user2' }],
+      milestone: { title: 'v1.0' },
+      reactions: { total_count: 5 },
+      comments: 3,
+      state: 'open',
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-02T00:00:00Z',
+    }];
+    const result = stripIssueFields(raw);
+    expect(result).toEqual([{
+      number: 1,
+      title: 'Feature A',
+      html_url: 'https://github.com/owner/repo/issues/1',
+      labels: [{ name: 'Roadmap: Now', color: '2da44e' }],
+    }]);
+  });
+
+  test('strips extra fields from labels', () => {
+    const raw = [{
+      number: 1,
+      title: 'Test',
+      html_url: 'https://github.com/o/r/issues/1',
+      labels: [
+        { name: 'Roadmap: Now', color: '2da44e', id: 100, node_id: 'abc', url: 'https://api.github.com/labels/1', description: 'Now items', default: false },
+        { name: 'Roadmap Group: API', color: 'ff0000', id: 200, node_id: 'def', url: 'https://api.github.com/labels/2', description: 'API group', default: false },
+      ],
+    }];
+    const result = stripIssueFields(raw);
+    expect(result[0].labels).toEqual([
+      { name: 'Roadmap: Now', color: '2da44e' },
+      { name: 'Roadmap Group: API', color: 'ff0000' },
+    ]);
+  });
+
+  test('handles empty array', () => {
+    expect(stripIssueFields([])).toEqual([]);
+  });
+
+  test('handles multiple issues', () => {
+    const raw = [
+      { number: 1, title: 'A', html_url: 'u/1', labels: [{ name: 'l1', color: 'aaa' }], body: 'x' },
+      { number: 2, title: 'B', html_url: 'u/2', labels: [], body: 'y' },
+    ];
+    const result = stripIssueFields(raw);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual({ number: 1, title: 'A', html_url: 'u/1', labels: [{ name: 'l1', color: 'aaa' }] });
+    expect(result[1]).toEqual({ number: 2, title: 'B', html_url: 'u/2', labels: [] });
+  });
+
+  test('handles issue with no extra fields', () => {
+    const minimal = [{ number: 1, title: 'A', html_url: 'u/1', labels: [{ name: 'l1', color: 'aaa' }] }];
+    const result = stripIssueFields(minimal);
+    expect(result).toEqual(minimal);
+  });
+});
+
 // Label-aware axios mock: routes each GitHub issues request to the matching
 // roadmap label, supporting per-label pagination keyed by the `page` query param.
 function mockByLabel({ now = {}, next = {}, later = {} }) {
@@ -632,6 +698,28 @@ describe('fetchIssues (no caching)', () => {
 
   afterAll(() => {
     process.env = originalEnv;
+  });
+
+  test('strips extra fields from fetched issues', async () => {
+    const heavy = {
+      number: 7,
+      title: 'Heavy',
+      html_url: 'https://github.com/owner/repo/issues/7',
+      labels: [{ name: 'Roadmap: Now', color: '2da44e', id: 1, description: 'd' }],
+      body: 'long body',
+      user: { login: 'someone' },
+      state: 'open',
+    };
+    mockByLabel({ now: { 1: [heavy] } });
+
+    const issues = await fetchIssues('owner', 'repo');
+
+    expect(issues).toEqual([{
+      number: 7,
+      title: 'Heavy',
+      html_url: 'https://github.com/owner/repo/issues/7',
+      labels: [{ name: 'Roadmap: Now', color: '2da44e' }],
+    }]);
   });
 
   test('fetches each roadmap label and merges the results', async () => {
@@ -755,8 +843,11 @@ describe('fetchIssues (cached, no conditional requests)', () => {
     return { axios: freshAxios, fetchIssues: freshFetchIssues };
   }
 
-  test('returns cached issues without any API call when cache is fresh', async () => {
-    const cachedData = { issues: mockIssues, etag: null, cachedAt: Date.now() };
+  test('returns cached issues (stripped) without any API call when cache is fresh', async () => {
+    const cachedIssues = [
+      { number: 1, title: 'A', html_url: 'u/1', labels: [{ name: 'Roadmap: Now', color: '2da44e' }] },
+    ];
+    const cachedData = { issues: cachedIssues, etag: null, cachedAt: Date.now() };
     mockGetCachedIssues.mockResolvedValue(cachedData);
     mockIsCacheFresh.mockReturnValue(true);
 
@@ -765,7 +856,8 @@ describe('fetchIssues (cached, no conditional requests)', () => {
 
     const result = await freshFetchIssues('owner', 'repo', 3600);
 
-    expect(result).toEqual(mockIssues);
+    // Stripped on read so old, pre-strip entries are normalized; identical here.
+    expect(result).toEqual(cachedIssues);
     expect(freshAxios.get).not.toHaveBeenCalled();
     expect(mockCacheIssues).not.toHaveBeenCalled();
   });

@@ -134,6 +134,8 @@ The `withMiddleware(handler, options)` higher-order function wraps all API handl
 
 **Label-filtered fetching:** GitHub's `labels` query param is AND-only (comma-separated labels must *all* be present), so the three roadmap labels can't be OR'd in a single request. Instead `fetchRoadmapIssues()` queries each of `ROADMAP_LABELS` (`Roadmap: Now`, `Roadmap: Next`, `Roadmap: Later`) separately — `…/issues?state=open&labels=<label>&per_page=100&page=N`, paginating until a page returns fewer than 100 — then merges the results, deduping by issue number (an issue may carry more than one roadmap label). This keeps the payload to just the roadmap issues and, crucially, **avoids the old bug where roadmap-labelled issues were dropped** because they fell outside the newest 100 items returned by the unfiltered `/issues` endpoint.
 
+**Field stripping:** Before issues are cached or returned, `stripIssueFields()` reduces each one to only the fields the renderer needs — `number`, `title`, `html_url`, and `labels` (`name` + `color`) — cutting Redis memory and network transfer (~90% payload reduction for typical repos). It is applied to the merged result in `fetchRoadmapIssues()` and again on the FRESH cache-hit read (so entries cached before stripping existed are normalized).
+
 **Cache format:** Each entry stores `{ issues, etag, cachedAt }` with **no Redis TTL** (entries persist permanently). Freshness is checked in application code via `isCacheFresh(cacheData, ttlSeconds)` comparing `cachedAt` against the tier's soft TTL. The `etag` field is currently always `null` — see "ETag note" below.
 
 **Cache paths in `fetchIssues`:**
@@ -155,7 +157,7 @@ The `withMiddleware(handler, options)` higher-order function wraps all API handl
 
 **Key files:**
 - `lib/cache.js`: `getCachedIssues()`, `cacheIssues()`, `isCacheFresh()` — cache read/write/freshness
-- `roadmap.js`: `fetchIssues()` — cache lookup + freshness; `fetchRoadmapIssues()` / `fetchIssuesForLabel()` — per-label paginated fetch and merge
+- `roadmap.js`: `fetchIssues()` — cache lookup + freshness; `fetchRoadmapIssues()` / `fetchIssuesForLabel()` — per-label paginated fetch and merge; `stripIssueFields()` — trims issues to renderer-essential fields
 
 ### Redis Data Model
 

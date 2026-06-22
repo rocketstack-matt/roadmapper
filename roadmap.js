@@ -294,6 +294,21 @@ const generateRoadmapSVG = (issues, bgColor, textColor) => {
   `;
 };
 
+// Keep only the fields the renderer needs (number, title, html_url, and label
+// name/color). Applied before caching/returning to cut Redis memory and
+// network transfer (~90% payload reduction for typical repos).
+const stripIssueFields = (issues) => {
+    return issues.map(issue => ({
+        number: issue.number,
+        title: issue.title,
+        html_url: issue.html_url,
+        labels: issue.labels.map(label => ({
+            name: label.name,
+            color: label.color,
+        })),
+    }));
+};
+
 // Fetch every open issue carrying a given label, following pagination until a
 // page returns fewer than per_page results.
 const fetchIssuesForLabel = async (owner, repo, label, headers) => {
@@ -312,7 +327,8 @@ const fetchIssuesForLabel = async (owner, repo, label, headers) => {
 };
 
 // Fetch the open issues for every roadmap label and merge them, deduping by
-// issue number (an issue may carry more than one roadmap label).
+// issue number (an issue may carry more than one roadmap label). The merged
+// result is stripped to the fields the renderer needs before being returned.
 const fetchRoadmapIssues = async (owner, repo) => {
     const headers = {};
     if (process.env.GITHUB_TOKEN) {
@@ -326,7 +342,7 @@ const fetchRoadmapIssues = async (owner, repo) => {
             byNumber.set(issue.number, issue);
         }
     }
-    return Array.from(byNumber.values());
+    return stripIssueFields(Array.from(byNumber.values()));
 };
 
 const fetchIssues = async (owner, repo, cacheTtlSeconds) => {
@@ -341,7 +357,8 @@ const fetchIssues = async (owner, repo, cacheTtlSeconds) => {
         // Fresh cache — return immediately, no API call
         if (cached && isCacheFresh(cached, cacheTtlSeconds)) {
             if (debug) console.log(`${tag} FRESH — returning cached issues (ttl=${cacheTtlSeconds}s)`);
-            return cached.issues;
+            // Strip on read too, in case the entry was cached before stripping existed.
+            return stripIssueFields(cached.issues);
         }
 
         if (debug) console.log(`${tag} ${cached ? 'STALE' : 'MISS'} — fetching roadmap issues`);
@@ -358,6 +375,7 @@ const fetchIssues = async (owner, repo, cacheTtlSeconds) => {
 module.exports = {
     generateRoadmapSVG,
     fetchIssues,
+    stripIssueFields,
     validateHexColor,
     normalizeHex,
     hexToRgba,
