@@ -276,6 +276,14 @@ describe('generateRoadmapSVG', () => {
     expect(svg).toContain('drop-shadow');
   });
 
+  test('includes hover outline using each card\'s label color', () => {
+    const svg = generateRoadmapSVG(mockIssues, 'ffffff', '24292f');
+    expect(svg).toContain('.roadmap-card:hover rect:first-child');
+    expect(svg).toContain('stroke: var(--accent-color)');
+    expect(svg).toContain('--accent-color: #2da44e');
+    expect(svg).toContain('--accent-color: #fb8500');
+  });
+
   test('positions columns at correct x offsets', () => {
     const svg = generateRoadmapSVG(mockIssues, 'ffffff', '24292f');
     expect(svg).toContain('translate(0, 0)');

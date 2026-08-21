@@ -105,6 +105,26 @@ describe('api/embed', () => {
     expect(areaMatches.length).toBeGreaterThanOrEqual(3);
   });
 
+  test('sets data-color on each area from its issue label color', async () => {
+    const req = createMockReq('/embed/owner/repo/ffffff/24292f');
+    const res = createMockRes();
+
+    await embedHandler(req, res);
+
+    expect(res.body).toContain('coords="15,130,365,205" href="https://github.com/owner/repo/issues/1" alt="Feature A" data-color="#2da44e"');
+  });
+
+  test('includes a hover highlight overlay element and mouseenter/mouseleave wiring', async () => {
+    const req = createMockReq('/embed/owner/repo/ffffff/24292f');
+    const res = createMockRes();
+
+    await embedHandler(req, res);
+
+    expect(res.body).toContain('id="hover-highlight"');
+    expect(res.body).toContain('mouseenter');
+    expect(res.body).toContain('mouseleave');
+  });
+
   test('redirects 2-parameter format to default colors', async () => {
     const req = createMockReq('/embed/owner/repo');
     const res = createMockRes();

@@ -156,7 +156,7 @@ const createColumn = (title, subtitle, groupedData, xPosition, className, layout
     const labelColor = issue.labelColor ? `#${issue.labelColor}` : '#8b949e';
     return `
       <a href="${issue.html_url}" target="_blank" rel="noopener noreferrer">
-        <g transform="translate(0, ${yPos})" class="roadmap-card" style="cursor: pointer;">
+        <g transform="translate(0, ${yPos})" class="roadmap-card" style="cursor: pointer; --accent-color: ${labelColor};">
           <rect x="15" y="0" width="350" height="75" rx="8" ry="8" style="fill: ${cardBackground}; filter: drop-shadow(0 1px 3px ${shadowColor});"></rect>
           <rect x="15" y="0" width="350" height="4" rx="8" ry="8" style="fill: ${labelColor};"></rect>
           <foreignObject x="25" y="15" width="330" height="55" style="pointer-events: none;">
@@ -277,6 +277,8 @@ const generateRoadmapSVG = (issues, bgColor, textColor) => {
         <style>
           .roadmap-card:hover rect:first-child {
             filter: drop-shadow(0 4px 12px ${hoverShadowColor});
+            stroke: var(--accent-color);
+            stroke-width: 2px;
           }
         </style>
       </defs>
