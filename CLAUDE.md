@@ -128,32 +128,36 @@ The `withMiddleware(handler, options)` higher-order function wraps all API handl
 
 **Graceful fallback:** When `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are not set, middleware is skipped entirely and all endpoints work unrestricted.
 
-### Response Caching & ETag Revalidation
+### Label-Filtered Fetching & Response Caching
 
-`fetchIssues(owner, repo, cacheTtlSeconds)` supports Redis-based caching with GitHub ETag conditional requests to minimize API rate limit consumption.
+`fetchIssues(owner, repo, cacheTtlSeconds)` fetches only the issues relevant to the roadmap and caches the merged result in Redis.
 
-**Cache format:** Each entry stores `{ issues, etag, cachedAt }` with **no Redis TTL** (entries persist permanently). Freshness is checked in application code via `isCacheFresh(cacheData, ttlSeconds)` comparing `cachedAt` against the tier's soft TTL.
+**Label-filtered fetching:** GitHub's `labels` query param is AND-only (comma-separated labels must *all* be present), so the three roadmap labels can't be OR'd in a single request. Instead `fetchRoadmapIssues()` queries each of `ROADMAP_LABELS` (`Roadmap: Now`, `Roadmap: Next`, `Roadmap: Later`) **concurrently** — `…/issues?state=open&labels=<label>&per_page=100&page=N`, paginating each until a page returns fewer than 100 — then merges the results, deduping by issue number (an issue may carry more than one roadmap label). Pull requests are excluded: the GitHub `/issues` endpoint also returns PRs (PRs are issues in GitHub's model), so items with a `pull_request` field are filtered out in `fetchIssuesForLabel()`. This keeps the payload to just the roadmap issues and, crucially, **avoids the old bug where roadmap-labelled issues were dropped** because they fell outside the newest 100 items returned by the unfiltered `/issues` endpoint.
+
+**Field stripping:** Before issues are cached or returned, `stripIssueFields()` reduces each one to only the fields the renderer needs — `number`, `title`, `html_url`, and `labels` (`name` + `color`) — cutting Redis memory and network transfer (~90% payload reduction for typical repos). It is applied to the merged result in `fetchRoadmapIssues()` and again on the FRESH cache-hit read (so entries cached before stripping existed are normalized).
+
+**Cache format:** Each entry stores `{ issues, etag, cachedAt }` with **no Redis TTL** (entries persist permanently). Freshness is checked in application code via `isCacheFresh(cacheData, ttlSeconds)` comparing `cachedAt` against the tier's soft TTL. The `etag` field is currently always `null` — see "ETag note" below.
 
 **Cache paths in `fetchIssues`:**
 
 | Scenario | What happens | GitHub API cost |
 |----------|-------------|-----------------|
 | **FRESH** — `cachedAt` within soft TTL | Return `cached.issues` immediately | **0** |
-| **STALE + ETag → 304** | Send `If-None-Match`, GitHub confirms unchanged, refresh `cachedAt` | **0** (free) |
-| **STALE + ETag → 200** | Data changed, store new issues + new ETag | 1 request |
-| **STALE + no ETag** | Full fetch, extract ETag from response | 1 request |
-| **MISS** — no cache entry | Full fetch, extract ETag from response | 1 request |
-| **No `cacheTtlSeconds`** | Direct GitHub fetch, no caching | 1 request |
+| **STALE** — `cachedAt` older than soft TTL | Re-fetch all roadmap labels, cache merged result | 1 request per label page |
+| **MISS** — no cache entry | Fetch all roadmap labels, cache merged result | 1 request per label page |
+| **No `cacheTtlSeconds`** | Direct label-filtered fetch, no caching | 1 request per label page |
 
 **Soft TTL by tier:** Free = 3600s (60 min), Paid = 30s.
 
-**Backward compatibility:** Old cache entries (plain JSON arrays from before ETag support) are auto-wrapped as `{ issues: array, etag: null, cachedAt: 0 }` on read, making them immediately stale and triggering a fresh fetch.
+**ETag note:** This branch removed the GitHub ETag conditional-request path that previously made STALE refreshes free (304). The `{ issues, etag, cachedAt }` format and `lib/cache.js`'s `etag` plumbing are retained (the field is written as `null`) so ETag revalidation can be reintroduced later on top of the per-label fetch — each label URL would carry its own ETag. See the `feat/etag-caching` branch for the prior conditional-request implementation.
+
+**Backward compatibility:** Old cache entries (plain JSON arrays) are auto-wrapped as `{ issues: array, etag: null, cachedAt: 0 }` on read, making them immediately stale and triggering a fresh fetch.
 
 **Debug logging:** When `VERCEL_ENV !== 'production'` (i.e. local dev and Vercel preview deployments), `fetchIssues` logs each cache path to the console with a `[cache owner/repo]` prefix. These logs are silent in production.
 
 **Key files:**
 - `lib/cache.js`: `getCachedIssues()`, `cacheIssues()`, `isCacheFresh()` — cache read/write/freshness
-- `roadmap.js`: `fetchIssues()` — orchestrates the cache lookup, conditional request, and ETag extraction
+- `roadmap.js`: `fetchIssues()` — cache lookup + freshness; `fetchRoadmapIssues()` / `fetchIssuesForLabel()` — per-label paginated fetch and merge; `stripIssueFields()` — trims issues to renderer-essential fields
 
 ### Redis Data Model
 
@@ -217,16 +221,16 @@ The project uses **Jest** for testing. Tests live in the `tests/` directory.
 - API endpoint handlers are tested directly with mock req/res objects (no HTTP server needed)
 - Set `process.env.UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` before requiring middleware in tests
 
-### Local Testing of Cache & ETag Paths
+### Local Testing of Cache Paths
 
-The caching and ETag revalidation logic in `fetchIssues` requires Redis to be configured and a registered repo with a specific tier. To test these paths locally:
+The caching logic in `fetchIssues` requires Redis to be configured and a registered repo with a specific tier. To test these paths locally:
 
 **Prerequisites:**
 1. `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` set in `.env`
 2. `GITHUB_TOKEN` set in `.env` (optional but recommended)
 3. The target repo must be registered (has an API key in Redis and a `.roadmapper` file committed)
 
-**Tier setup:** The free tier has a 60-minute soft TTL, which is too long to observe the STALE→304 path in a testing session. Use the tier script to temporarily switch to the paid tier (30s soft TTL):
+**Tier setup:** The free tier has a 60-minute soft TTL, which is too long to observe the STALE→re-fetch path in a testing session. Use the tier script to temporarily switch to the paid tier (30s soft TTL):
 
 ```bash
 node scripts/set-tier.js <owner> <repo> paid    # switch to 30s cache TTL
@@ -240,22 +244,21 @@ node scripts/set-tier.js <owner> <repo> free    # revert to 60-minute cache TTL
 1. Start the server: `npm run run`
 2. Make a request: `curl http://localhost:5002/<owner>/<repo>/ffffff/24292f`
 3. Check the server console for cache debug logs:
-   - `[cache owner/repo] MISS` — no cache entry, full fetch
+   - `[cache owner/repo] MISS — fetching roadmap issues` — no cache entry, full fetch
    - `[cache owner/repo] FRESH` — within soft TTL, no API call
-   - `[cache owner/repo] STALE — sending conditional request with ETag ...` — TTL expired, ETag revalidation
-   - `[cache owner/repo] 304 NOT MODIFIED` — data unchanged, free revalidation
-   - `[cache owner/repo] 200 OK — new data cached` — data changed or no prior ETag
-4. Wait for the soft TTL to expire (30s on paid tier), then request again to trigger the STALE→304 path
+   - `[cache owner/repo] STALE — fetching roadmap issues` — TTL expired, re-fetch all roadmap labels
+   - `[cache owner/repo] fetched N roadmap issues — caching` — merged result cached
+4. Wait for the soft TTL to expire (30s on paid tier), then request again to trigger the STALE re-fetch path
 5. Make another immediate request to see the FRESH path
 
 **Expected sequence for a paid-tier repo:**
 
 ```
-Request 1: MISS → 200 OK (or STALE → 304/200 if cache exists from prior run)
+Request 1: MISS → fetched N roadmap issues (or STALE if cache exists from prior run)
 Request 2: FRESH (within 30s)
 -- wait 35s --
-Request 3: STALE → 304 NOT MODIFIED (data unchanged, free)
-Request 4: FRESH (cachedAt refreshed by the 304)
+Request 3: STALE → fetched N roadmap issues
+Request 4: FRESH (cachedAt refreshed)
 ```
 
 **These debug logs only appear when `VERCEL_ENV !== 'production'`** — they are active locally (where `VERCEL_ENV` is unset) and on Vercel preview deployments (where `VERCEL_ENV` is `'preview'`), but silent in production.
