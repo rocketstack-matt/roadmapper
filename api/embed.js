@@ -34,10 +34,20 @@ const handler = async (req, res) => {
     // Sort issues by number
     issues.sort((a, b) => a.number - b.number);
 
+    // Returns a shallow copy per issue rather than mutating the shared issue
+    // object — an issue can carry more than one roadmap label, so mutating in
+    // place would leak the last-processed column's color into every column
+    // the issue appears in.
+    const filterAndExtractColor = (labelName) => {
+      return issues
+        .filter(issue => issue.labels.some(l => l.name === labelName))
+        .map(issue => ({ ...issue, labelColor: issue.labels.find(l => l.name === labelName).color }));
+    };
+
     const columns = {
-      now: groupIssues(issues.filter(issue => issue.labels.some(label => label.name === 'Roadmap: Now'))),
-      next: groupIssues(issues.filter(issue => issue.labels.some(label => label.name === 'Roadmap: Next'))),
-      later: groupIssues(issues.filter(issue => issue.labels.some(label => label.name === 'Roadmap: Later')))
+      now: groupIssues(filterAndExtractColor('Roadmap: Now')),
+      next: groupIssues(filterAndExtractColor('Roadmap: Next')),
+      later: groupIssues(filterAndExtractColor('Roadmap: Later'))
     };
 
     const layout = buildGlobalLayout(columns);
@@ -48,16 +58,21 @@ const handler = async (req, res) => {
     const createGroupedAreas = (groupedData, columnIndex) => {
       const areas = [];
 
+      const pushArea = (issue, xOffset, y) => {
+        const x1 = xOffset + 15;
+        const y1 = y;
+        const x2 = xOffset + 365;
+        const y2 = y + 75;
+        const labelColor = issue.labelColor ? `#${issue.labelColor}` : '#8b949e';
+        const escapedTitle = issue.title.replace(/"/g, '&quot;');
+        areas.push(`<area shape="rect" coords="${x1},${y1},${x2},${y2}" href="${issue.html_url}" alt="${escapedTitle}" data-color="${labelColor}" target="_blank">`);
+      };
+
       if (!layout.hasGroups) {
         // Flat layout - no groups
         let y = COLUMN_HEADER_HEIGHT;
         groupedData.ungrouped.forEach(issue => {
-          const xOffset = columnIndex * 380;
-          const x1 = xOffset + 15;
-          const y1 = y;
-          const x2 = xOffset + 365;
-          const y2 = y + 75;
-          areas.push(`<area shape="rect" coords="${x1},${y1},${x2},${y2}" href="${issue.html_url}" alt="${issue.title}" target="_blank">`);
+          pushArea(issue, columnIndex * 380, y);
           y += CARD_SLOT_HEIGHT;
         });
       } else {
@@ -67,12 +82,7 @@ const handler = async (req, res) => {
           if (group) {
             let y = band.yStart + GROUP_HEADER_HEIGHT;
             group.issues.forEach(issue => {
-              const xOffset = columnIndex * 380;
-              const x1 = xOffset + 15;
-              const y1 = y;
-              const x2 = xOffset + 365;
-              const y2 = y + 75;
-              areas.push(`<area shape="rect" coords="${x1},${y1},${x2},${y2}" href="${issue.html_url}" alt="${issue.title}" target="_blank">`);
+              pushArea(issue, columnIndex * 380, y);
               y += CARD_SLOT_HEIGHT;
             });
           }
@@ -82,12 +92,7 @@ const handler = async (req, res) => {
         if (layout.ungroupedBand) {
           let y = layout.ungroupedBand.yStart + GROUP_HEADER_HEIGHT;
           groupedData.ungrouped.forEach(issue => {
-            const xOffset = columnIndex * 380;
-            const x1 = xOffset + 15;
-            const y1 = y;
-            const x2 = xOffset + 365;
-            const y2 = y + 75;
-            areas.push(`<area shape="rect" coords="${x1},${y1},${x2},${y2}" href="${issue.html_url}" alt="${issue.title}" target="_blank">`);
+            pushArea(issue, columnIndex * 380, y);
             y += CARD_SLOT_HEIGHT;
           });
         }
@@ -115,6 +120,15 @@ const handler = async (req, res) => {
   <style>
     html, body { margin: 0; padding: 0; overflow: hidden; }
     img { max-width: 100%; height: auto; display: block; }
+    .roadmap-wrap { position: relative; }
+    #hover-highlight {
+      position: absolute;
+      display: none;
+      box-sizing: border-box;
+      border: 2px solid;
+      border-radius: 8px;
+      pointer-events: none;
+    }
   </style>
   <script>
     window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
@@ -122,12 +136,18 @@ const handler = async (req, res) => {
   <script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body>
-  <img src="${imageUrl}" alt="Roadmap" usemap="#roadmap" style="width: 100%;">
+  <div class="roadmap-wrap">
+    <img src="${imageUrl}" alt="Roadmap" usemap="#roadmap" style="width: 100%;">
+    <div id="hover-highlight"></div>
+  </div>
   <map name="roadmap">
     ${mapAreas}
   </map>
   <script>
     var img = document.querySelector('img');
+    var highlight = document.getElementById('hover-highlight');
+    var SVG_WIDTH = 1140;
+
     function sendSize() {
       if (window.parent !== window && img.offsetHeight > 0) {
         window.parent.postMessage({
@@ -139,6 +159,34 @@ const handler = async (req, res) => {
     if (img.complete) sendSize();
     else img.addEventListener('load', sendSize);
     window.addEventListener('resize', sendSize);
+
+    var hoveredArea = null;
+
+    function positionHighlight(area) {
+      var coords = area.coords.split(',').map(Number);
+      var scale = img.clientWidth / SVG_WIDTH;
+      highlight.style.left = (coords[0] * scale) + 'px';
+      highlight.style.top = (coords[1] * scale) + 'px';
+      highlight.style.width = ((coords[2] - coords[0]) * scale) + 'px';
+      highlight.style.height = ((coords[3] - coords[1]) * scale) + 'px';
+      highlight.style.borderColor = area.dataset.color || '#8b949e';
+      highlight.style.display = 'block';
+    }
+
+    document.querySelectorAll('area').forEach(function (area) {
+      area.addEventListener('mouseenter', function () {
+        hoveredArea = area;
+        positionHighlight(area);
+      });
+      area.addEventListener('mouseleave', function () {
+        hoveredArea = null;
+        highlight.style.display = 'none';
+      });
+    });
+
+    window.addEventListener('resize', function () {
+      if (hoveredArea) positionHighlight(hoveredArea);
+    });
   </script>
 </body>
 </html>`;

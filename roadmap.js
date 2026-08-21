@@ -161,12 +161,12 @@ const createColumn = (title, subtitle, groupedData, xPosition, className, layout
     const labelColor = issue.labelColor ? `#${issue.labelColor}` : '#8b949e';
     return `
       <a href="${issue.html_url}" target="_blank" rel="noopener noreferrer">
-        <g transform="translate(0, ${yPos})" class="roadmap-card" style="cursor: pointer;">
+        <g transform="translate(0, ${yPos})" class="roadmap-card" style="cursor: pointer; --accent-color: ${labelColor};">
           <rect x="15" y="0" width="350" height="75" rx="8" ry="8" style="fill: ${cardBackground}; filter: drop-shadow(0 1px 3px ${shadowColor});"></rect>
           <rect x="15" y="0" width="350" height="4" rx="8" ry="8" style="fill: ${labelColor};"></rect>
           <foreignObject x="25" y="15" width="330" height="55" style="pointer-events: none;">
             <body xmlns="http://www.w3.org/1999/xhtml" style="margin: 0;">
-              <div style="font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-weight: 500; color: ${cardTextColor}; line-height: 1.4; padding: 8px 10px; word-wrap: break-word; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">${issue.title}</div>
+              <div style="font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-weight: 500; color: ${cardTextColor}; line-height: 1.4; padding: 8px 10px; word-wrap: break-word; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; pointer-events: none; cursor: pointer; user-select: none;">${issue.title}</div>
             </body>
           </foreignObject>
         </g>
@@ -232,16 +232,15 @@ const generateRoadmapSVG = (issues, bgColor, textColor) => {
     const shadowColor = hexToRgba(text, 0.08);
     const hoverShadowColor = hexToRgba(text, 0.12);
 
-    // Filter issues and extract label colors
+    // Filter issues for a column and attach that column's label color. Returns
+    // a shallow copy per issue rather than mutating the shared issue object —
+    // an issue can carry more than one roadmap label (see fetchRoadmapIssues),
+    // so mutating in place would leak the last-processed column's color into
+    // every column the issue appears in.
     const filterAndExtractColor = (labelName) => {
-        return issues.filter(issue => {
-            const label = issue.labels.find(l => l.name === labelName);
-            if (label) {
-                issue.labelColor = label.color;
-                return true;
-            }
-            return false;
-        });
+        return issues
+            .filter(issue => issue.labels.some(l => l.name === labelName))
+            .map(issue => ({ ...issue, labelColor: issue.labels.find(l => l.name === labelName).color }));
     };
 
     const columns = {
@@ -282,6 +281,8 @@ const generateRoadmapSVG = (issues, bgColor, textColor) => {
         <style>
           .roadmap-card:hover rect:first-child {
             filter: drop-shadow(0 4px 12px ${hoverShadowColor});
+            stroke: var(--accent-color);
+            stroke-width: 2px;
           }
         </style>
       </defs>

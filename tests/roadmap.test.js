@@ -263,10 +263,49 @@ describe('generateRoadmapSVG', () => {
     expect(svg).not.toContain('Bug Fix');
   });
 
+  test('renders each column\'s own label color for an issue carrying multiple roadmap labels', () => {
+    const dualLabelIssue = {
+      number: 1,
+      title: 'Dual label issue',
+      html_url: 'https://github.com/owner/repo/issues/1',
+      labels: [
+        { name: 'Roadmap: Now', color: '2da44e' },
+        { name: 'Roadmap: Next', color: 'fb8500' },
+      ],
+    };
+    const svg = generateRoadmapSVG([dualLabelIssue], 'ffffff', '24292f');
+    const accentColors = [...svg.matchAll(/--accent-color: (#[0-9a-f]{6});/g)].map(m => m[1]);
+    expect(accentColors).toEqual(['#2da44e', '#fb8500']);
+  });
+
   test('includes hover shadow styles', () => {
     const svg = generateRoadmapSVG(mockIssues, 'ffffff', '24292f');
     expect(svg).toContain('.roadmap-card:hover');
     expect(svg).toContain('drop-shadow');
+  });
+
+  test('includes hover outline using each card\'s label color', () => {
+    const svg = generateRoadmapSVG(mockIssues, 'ffffff', '24292f');
+    expect(svg).toContain('.roadmap-card:hover rect:first-child');
+    expect(svg).toContain('stroke: var(--accent-color)');
+    expect(svg).toContain('--accent-color: #2da44e');
+    expect(svg).toContain('--accent-color: #fb8500');
+  });
+
+  test('card title sets pointer-events, cursor, and user-select directly rather than relying on inherited values', () => {
+    // WebKit/Safari has a long-standing bug where properties set on an SVG
+    // ancestor OUTSIDE a <foreignObject> (like the card's `cursor: pointer`)
+    // don't reliably inherit into the embedded HTML content inside it — the
+    // cursor falls back to the text-selection default and hover state on the
+    // ancestor <g> can drop while over the text. Setting these directly on
+    // the title div avoids depending on that cross-boundary inheritance.
+    const svg = generateRoadmapSVG(mockIssues, 'ffffff', '24292f');
+    const titleDivMatch = svg.match(/<div style="([^"]*font-weight: 500[^"]*)">/);
+    expect(titleDivMatch).not.toBeNull();
+    const titleDivStyle = titleDivMatch[1];
+    expect(titleDivStyle).toContain('pointer-events: none');
+    expect(titleDivStyle).toContain('cursor: pointer');
+    expect(titleDivStyle).toContain('user-select: none');
   });
 
   test('positions columns at correct x offsets', () => {
