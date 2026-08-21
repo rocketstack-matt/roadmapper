@@ -277,6 +277,22 @@ describe('generateRoadmapSVG', () => {
     expect(svg).toContain('--accent-color: #fb8500');
   });
 
+  test('card title sets pointer-events, cursor, and user-select directly rather than relying on inherited values', () => {
+    // WebKit/Safari has a long-standing bug where properties set on an SVG
+    // ancestor OUTSIDE a <foreignObject> (like the card's `cursor: pointer`)
+    // don't reliably inherit into the embedded HTML content inside it — the
+    // cursor falls back to the text-selection default and hover state on the
+    // ancestor <g> can drop while over the text. Setting these directly on
+    // the title div avoids depending on that cross-boundary inheritance.
+    const svg = generateRoadmapSVG(mockIssues, 'ffffff', '24292f');
+    const titleDivMatch = svg.match(/<div style="([^"]*font-weight: 500[^"]*)">/);
+    expect(titleDivMatch).not.toBeNull();
+    const titleDivStyle = titleDivMatch[1];
+    expect(titleDivStyle).toContain('pointer-events: none');
+    expect(titleDivStyle).toContain('cursor: pointer');
+    expect(titleDivStyle).toContain('user-select: none');
+  });
+
   test('positions columns at correct x offsets', () => {
     const svg = generateRoadmapSVG(mockIssues, 'ffffff', '24292f');
     expect(svg).toContain('translate(0, 0)');

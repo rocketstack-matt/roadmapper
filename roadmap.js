@@ -166,7 +166,7 @@ const createColumn = (title, subtitle, groupedData, xPosition, className, layout
           <rect x="15" y="0" width="350" height="4" rx="8" ry="8" style="fill: ${labelColor};"></rect>
           <foreignObject x="25" y="15" width="330" height="55" style="pointer-events: none;">
             <body xmlns="http://www.w3.org/1999/xhtml" style="margin: 0;">
-              <div style="font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-weight: 500; color: ${cardTextColor}; line-height: 1.4; padding: 8px 10px; word-wrap: break-word; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">${issue.title}</div>
+              <div style="font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-weight: 500; color: ${cardTextColor}; line-height: 1.4; padding: 8px 10px; word-wrap: break-word; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; pointer-events: none; cursor: pointer; user-select: none;">${issue.title}</div>
             </body>
           </foreignObject>
         </g>
