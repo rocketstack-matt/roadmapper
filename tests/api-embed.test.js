@@ -114,6 +114,43 @@ describe('api/embed', () => {
     expect(res.body).toContain('coords="15,130,365,205" href="https://github.com/owner/repo/issues/1" alt="Feature A" data-color="#2da44e"');
   });
 
+  test('sets each column\'s own data-color for an issue carrying multiple roadmap labels', async () => {
+    const dualLabelIssue = {
+      number: 1,
+      title: 'Dual label issue',
+      html_url: 'https://github.com/owner/repo/issues/1',
+      labels: [
+        { name: 'Roadmap: Now', color: '2da44e' },
+        { name: 'Roadmap: Next', color: 'fb8500' },
+      ],
+    };
+    fetchIssues.mockResolvedValue([dualLabelIssue]);
+    const req = createMockReq('/embed/owner/repo/ffffff/24292f');
+    const res = createMockRes();
+
+    await embedHandler(req, res);
+
+    const dataColors = [...res.body.matchAll(/data-color="(#[0-9a-f]{6})"/g)].map(m => m[1]);
+    expect(dataColors).toEqual(['#2da44e', '#fb8500']);
+  });
+
+  test('HTML-escapes double quotes in the issue title used in the alt attribute', async () => {
+    const quotedTitleIssue = {
+      number: 1,
+      title: 'Say "hello" to the roadmap',
+      html_url: 'https://github.com/owner/repo/issues/1',
+      labels: [{ name: 'Roadmap: Now', color: '2da44e' }],
+    };
+    fetchIssues.mockResolvedValue([quotedTitleIssue]);
+    const req = createMockReq('/embed/owner/repo/ffffff/24292f');
+    const res = createMockRes();
+
+    await embedHandler(req, res);
+
+    expect(res.body).toContain('alt="Say &quot;hello&quot; to the roadmap"');
+    expect(res.body).not.toContain('alt="Say "hello" to the roadmap"');
+  });
+
   test('includes a hover highlight overlay element and mouseenter/mouseleave wiring', async () => {
     const req = createMockReq('/embed/owner/repo/ffffff/24292f');
     const res = createMockRes();

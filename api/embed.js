@@ -34,15 +34,14 @@ const handler = async (req, res) => {
     // Sort issues by number
     issues.sort((a, b) => a.number - b.number);
 
+    // Returns a shallow copy per issue rather than mutating the shared issue
+    // object — an issue can carry more than one roadmap label, so mutating in
+    // place would leak the last-processed column's color into every column
+    // the issue appears in.
     const filterAndExtractColor = (labelName) => {
-      return issues.filter(issue => {
-        const label = issue.labels.find(l => l.name === labelName);
-        if (label) {
-          issue.labelColor = label.color;
-          return true;
-        }
-        return false;
-      });
+      return issues
+        .filter(issue => issue.labels.some(l => l.name === labelName))
+        .map(issue => ({ ...issue, labelColor: issue.labels.find(l => l.name === labelName).color }));
     };
 
     const columns = {
@@ -65,7 +64,8 @@ const handler = async (req, res) => {
         const x2 = xOffset + 365;
         const y2 = y + 75;
         const labelColor = issue.labelColor ? `#${issue.labelColor}` : '#8b949e';
-        areas.push(`<area shape="rect" coords="${x1},${y1},${x2},${y2}" href="${issue.html_url}" alt="${issue.title}" data-color="${labelColor}" target="_blank">`);
+        const escapedTitle = issue.title.replace(/"/g, '&quot;');
+        areas.push(`<area shape="rect" coords="${x1},${y1},${x2},${y2}" href="${issue.html_url}" alt="${escapedTitle}" data-color="${labelColor}" target="_blank">`);
       };
 
       if (!layout.hasGroups) {

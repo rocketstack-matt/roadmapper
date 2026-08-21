@@ -263,6 +263,21 @@ describe('generateRoadmapSVG', () => {
     expect(svg).not.toContain('Bug Fix');
   });
 
+  test('renders each column\'s own label color for an issue carrying multiple roadmap labels', () => {
+    const dualLabelIssue = {
+      number: 1,
+      title: 'Dual label issue',
+      html_url: 'https://github.com/owner/repo/issues/1',
+      labels: [
+        { name: 'Roadmap: Now', color: '2da44e' },
+        { name: 'Roadmap: Next', color: 'fb8500' },
+      ],
+    };
+    const svg = generateRoadmapSVG([dualLabelIssue], 'ffffff', '24292f');
+    const accentColors = [...svg.matchAll(/--accent-color: (#[0-9a-f]{6});/g)].map(m => m[1]);
+    expect(accentColors).toEqual(['#2da44e', '#fb8500']);
+  });
+
   test('includes hover shadow styles', () => {
     const svg = generateRoadmapSVG(mockIssues, 'ffffff', '24292f');
     expect(svg).toContain('.roadmap-card:hover');

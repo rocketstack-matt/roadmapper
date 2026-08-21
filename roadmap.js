@@ -232,16 +232,15 @@ const generateRoadmapSVG = (issues, bgColor, textColor) => {
     const shadowColor = hexToRgba(text, 0.08);
     const hoverShadowColor = hexToRgba(text, 0.12);
 
-    // Filter issues and extract label colors
+    // Filter issues for a column and attach that column's label color. Returns
+    // a shallow copy per issue rather than mutating the shared issue object —
+    // an issue can carry more than one roadmap label (see fetchRoadmapIssues),
+    // so mutating in place would leak the last-processed column's color into
+    // every column the issue appears in.
     const filterAndExtractColor = (labelName) => {
-        return issues.filter(issue => {
-            const label = issue.labels.find(l => l.name === labelName);
-            if (label) {
-                issue.labelColor = label.color;
-                return true;
-            }
-            return false;
-        });
+        return issues
+            .filter(issue => issue.labels.some(l => l.name === labelName))
+            .map(issue => ({ ...issue, labelColor: issue.labels.find(l => l.name === labelName).color }));
     };
 
     const columns = {
