@@ -125,6 +125,16 @@ describe('api/embed', () => {
     expect(res.body).toContain('mouseleave');
   });
 
+  test('repositions the hover highlight on window resize while a card is hovered', async () => {
+    const req = createMockReq('/embed/owner/repo/ffffff/24292f');
+    const res = createMockRes();
+
+    await embedHandler(req, res);
+
+    expect(res.body).toContain('function positionHighlight(area)');
+    expect(res.body).toContain("window.addEventListener('resize', function () {\n      if (hoveredArea) positionHighlight(hoveredArea);\n    });");
+  });
+
   test('redirects 2-parameter format to default colors', async () => {
     const req = createMockReq('/embed/owner/repo');
     const res = createMockRes();

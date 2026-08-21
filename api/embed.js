@@ -160,20 +160,32 @@ const handler = async (req, res) => {
     else img.addEventListener('load', sendSize);
     window.addEventListener('resize', sendSize);
 
+    var hoveredArea = null;
+
+    function positionHighlight(area) {
+      var coords = area.coords.split(',').map(Number);
+      var scale = img.clientWidth / SVG_WIDTH;
+      highlight.style.left = (coords[0] * scale) + 'px';
+      highlight.style.top = (coords[1] * scale) + 'px';
+      highlight.style.width = ((coords[2] - coords[0]) * scale) + 'px';
+      highlight.style.height = ((coords[3] - coords[1]) * scale) + 'px';
+      highlight.style.borderColor = area.dataset.color || '#8b949e';
+      highlight.style.display = 'block';
+    }
+
     document.querySelectorAll('area').forEach(function (area) {
       area.addEventListener('mouseenter', function () {
-        var coords = area.coords.split(',').map(Number);
-        var scale = img.clientWidth / SVG_WIDTH;
-        highlight.style.left = (coords[0] * scale) + 'px';
-        highlight.style.top = (coords[1] * scale) + 'px';
-        highlight.style.width = ((coords[2] - coords[0]) * scale) + 'px';
-        highlight.style.height = ((coords[3] - coords[1]) * scale) + 'px';
-        highlight.style.borderColor = area.dataset.color || '#8b949e';
-        highlight.style.display = 'block';
+        hoveredArea = area;
+        positionHighlight(area);
       });
       area.addEventListener('mouseleave', function () {
+        hoveredArea = null;
         highlight.style.display = 'none';
       });
+    });
+
+    window.addEventListener('resize', function () {
+      if (hoveredArea) positionHighlight(hoveredArea);
     });
   </script>
 </body>
