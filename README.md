@@ -164,7 +164,7 @@ Colors are specified as hex codes **without the # symbol**. Both 3-digit and 6-d
 ## Setup & Development
 
 ### Prerequisites
-- Node.js 14 or higher
+- Node.js 24.x (the deployed runtime, pinned via `engines` in `package.json`). Newer majors work locally, but `npm install` warns `EBADENGINE`.
 - npm
 
 ### Installation
