@@ -587,6 +587,21 @@ describe('estimateTitleLines', () => {
     // 14px each, so 22 fit per line
     expect(estimateTitleLines('路'.repeat(30))).toBe(2);
   });
+
+  test('uses real widths for narrow typographic punctuation', () => {
+    // Curly apostrophes are ~4.2px, so 60 fit on one line in a browser
+    expect(estimateTitleLines('’'.repeat(60))).toBe(1);
+  });
+
+  test('uses real widths for wide symbols', () => {
+    // '©' is ~12.4px, so 30 wrap onto a second line in a browser
+    expect(estimateTitleLines('©'.repeat(30))).toBe(2);
+  });
+
+  test('does not wrap at a non-breaking space', () => {
+    // 'mmm mmm…' must move to the next line as a unit, pushing the last word to line 3
+    expect(estimateTitleLines('m'.repeat(20) + ' mmm ' + 'm'.repeat(20) + ' mmm')).toBe(3);
+  });
 });
 
 describe('dynamic card heights', () => {

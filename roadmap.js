@@ -31,7 +31,11 @@ const CHAR_WIDTHS = {
   '`': 0.489, 'a': 0.554, 'b': 0.616, 'c': 0.558, 'd': 0.616, 'e': 0.570, 'f': 0.368, 'g': 0.611,
   'h': 0.592, 'i': 0.250, 'j': 0.250, 'k': 0.552, 'l': 0.256, 'm': 0.880, 'n': 0.587, 'o': 0.590,
   'p': 0.612, 'q': 0.611, 'r': 0.396, 's': 0.518, 't': 0.371, 'u': 0.587, 'v': 0.545, 'w': 0.788,
-  'x': 0.532, 'y': 0.550, 'z': 0.538, '{': 0.387, '|': 0.262, '}': 0.387, '~': 0.633
+  'x': 0.532, 'y': 0.550, 'z': 0.538, '{': 0.387, '|': 0.262, '}': 0.387, '~': 0.633,
+  // Common typographic characters, which the code-point defaults below misjudge
+  ' ': 0.263, '‘': 0.303, '’': 0.303, '“': 0.480, '”': 0.480, '–': 0.587, '—': 0.881, '…': 0.844,
+  '•': 0.465, '·': 0.303, '→': 0.908, '←': 0.908, '«': 0.663, '»': 0.663, '€': 0.643, '£': 0.633,
+  '©': 0.885, '™': 0.846
 };
 const DEFAULT_CHAR_WIDTH = 0.65; // accented Latin, Greek, Cyrillic, etc.
 const WIDE_CHAR_WIDTH = 1.0; // CJK, emoji and other full-width characters
@@ -44,13 +48,14 @@ const charWidth = (ch) => {
 // Estimate how many lines a card title wraps to. SVG can't size a box to fit
 // its text, so card heights are computed here by replaying the browser's
 // greedy word wrap, breaking mid-word only when a word is wider than a whole
-// line (word-wrap: break-word).
+// line (word-wrap: break-word). Words split only on whitespace browsers wrap
+// at, so non-breaking spaces stay inside a word.
 const estimateTitleLines = (title) => {
   const spaceWidth = charWidth(' ');
   let lines = 1;
   let lineWidth = 0;
 
-  for (const word of String(title || '').trim().split(/\s+/)) {
+  for (const word of String(title || '').trim().split(/[ \t\n\r\f]+/)) {
     const chars = Array.from(word);
     const wordWidth = chars.reduce((sum, ch) => sum + charWidth(ch), 0);
 
