@@ -292,4 +292,32 @@ describe('api/embed', () => {
     // Ungrouped card: y1 = 270 (Other band) + 35 (Other header) = 305, y2 = 305+75 = 380
     expect(res.body).toContain('coords="15,305,365,380"');
   });
+
+  test('area coordinates follow dynamic card heights for long titles', async () => {
+    // Wraps to 3 lines, so the card is 75 + 20 = 95px tall
+    const longTitle = 'Publish @finos/calm-models as the canonical CALM library + extract @finos/calm-io adapters';
+    fetchIssues.mockResolvedValue([
+      helpers.createMockIssue(1, longTitle, 'Roadmap: Now', '2da44e'),
+      helpers.createMockIssue(2, 'Short', 'Roadmap: Now', '2da44e'),
+    ]);
+    const req = createMockReq('/embed/owner/repo/ffffff/24292f');
+    const res = createMockRes();
+
+    await embedHandler(req, res);
+
+    // Tall card: y1 = 130, y2 = 130 + 95 = 225
+    expect(res.body).toContain('coords="15,130,365,225"');
+    // Next card: y1 = 225 + 20 (gap) = 245, y2 = 245 + 75 = 320
+    expect(res.body).toContain('coords="15,245,365,320"');
+  });
+
+  test('escapes markup characters in the issue title used in the alt attribute', async () => {
+    fetchIssues.mockResolvedValue([helpers.createMockIssue(1, 'R&D <b>bold</b>', 'Roadmap: Now', '2da44e')]);
+    const req = createMockReq('/embed/owner/repo/ffffff/24292f');
+    const res = createMockRes();
+
+    await embedHandler(req, res);
+
+    expect(res.body).toContain('alt="R&amp;D &lt;b&gt;bold&lt;/b&gt;"');
+  });
 });

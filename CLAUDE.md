@@ -22,6 +22,7 @@ Shared by both deployment modes:
 - `validateHexColor(color)`: Validates hex color codes (3 or 6 digits)
 - `normalizeHex(hex)`: Converts 3-digit hex to 6-digit format
 - `hexToRgba(hex, alpha)`: Converts hex colors to rgba with transparency
+- `escapeXml(value)`: Escapes `& < > " '` for SVG/HTML. Issue titles, group names and URLs are user-controlled — always pass them through this before interpolating into markup or attributes (never escape before `estimateTitleLines`, which measures the raw title)
 
 **Label Color Extraction**: The service automatically extracts the actual color from GitHub labels and applies them as accent borders on roadmap cards. Each issue's label color is stored and used in the SVG generation.
 
@@ -49,11 +50,18 @@ Issues within a column can be visually grouped using labels with the `Roadmap Gr
 - If no issues have group labels, the column renders identically to the ungrouped layout (fully backward compatible)
 - An issue uses the first matching `Roadmap Group: *` label if multiple are present
 
-**Implementation:** `groupIssues()` in `roadmap.js` takes a column's filtered issues and returns `{ groups: [{ name, color, issues }], ungrouped: [] }`. Both `createColumn()` (SVG rendering) and `api/embed.js` (image map coordinates) use cumulative Y positioning to account for group headers.
+**Implementation:** `groupIssues()` in `roadmap.js` takes a column's filtered issues and returns `{ groups: [{ name, color, issues }], ungrouped: [] }`. `buildGlobalLayout()` turns the three grouped columns into bands plus `layout.cards` — each column's card positions `{ issue, y, height, lines }` in render order. `createColumn()` (SVG rendering), `api/embed.js` and `api/html.js` (image map coordinates) all read those positions rather than computing their own, so card geometry has a single source.
+
+### Dynamic Card Heights
+
+Cards grow to fit their title. SVG has no text layout, so `estimateTitleLines(title)` replays the browser's greedy word wrap server-side using a per-character width table (`CHAR_WIDTHS`, measured from SF Pro Medium — the widest font in the card's font stack — so estimates err towards an extra line rather than clipped text). Titles of 2 lines or fewer get the standard 75px card; each extra line adds `CARD_LINE_HEIGHT`. Band heights use the tallest column stack, not the most cards. The title `<div>` is clamped (`-webkit-line-clamp`) to the estimated line count and has no padding, so if a viewer's font is wider than expected the title ends in an ellipsis instead of a half-cut line.
 
 **Layout constants** (exported from `roadmap.js`):
 - `COLUMN_HEADER_HEIGHT`: 130px (title + subtitle area)
-- `CARD_SLOT_HEIGHT`: 95px (75px card + 20px gap)
+- `CARD_MIN_HEIGHT`: 75px (card fitting 2 lines of title)
+- `CARD_LINE_HEIGHT`: 20px (title line height; each line past 2 grows the card by this)
+- `CARD_GAP`: 20px (space below each card)
+- `CARD_SLOT_HEIGHT`: 95px (smallest card + gap)
 - `GROUP_HEADER_HEIGHT`: 35px (accent line + group name text)
 - `INTER_GROUP_GAP`: 10px (spacing between groups and before ungrouped section)
 

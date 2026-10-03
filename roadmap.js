@@ -2,11 +2,93 @@ const axios = require('axios');
 
 // Layout constants
 const COLUMN_HEADER_HEIGHT = 130;
-const CARD_SLOT_HEIGHT = 95;
+const CARD_MIN_HEIGHT = 75; // fits CARD_MIN_LINES of title text
+const CARD_MIN_LINES = 2;
+const CARD_LINE_HEIGHT = 20; // each title line beyond CARD_MIN_LINES grows the card by this
+const CARD_GAP = 20;
+const CARD_SLOT_HEIGHT = CARD_MIN_HEIGHT + CARD_GAP; // smallest card plus the gap below it
+const CARD_TEXT_WIDTH = 310;
+const CARD_FONT_SIZE = 14;
 const GROUP_HEADER_HEIGHT = 35;
 const INTER_GROUP_GAP = 10;
 const GROUP_LABEL_PREFIX = 'Roadmap Group: ';
 const UNGROUPED_LABEL = 'Other';
+const COLUMN_KEYS = ['now', 'next', 'later'];
+
+// Advance widths (in em) of the card title font at weight 500, measured from
+// SF Pro — what -apple-system resolves to, and the widest font in the card's
+// font-family stack — so wrap estimates err towards an extra line rather than
+// clipped text. Kerning only narrows real text, which also errs safe.
+const CHAR_WIDTHS = {
+  ' ': 0.263, '!': 0.315, '"': 0.497, '#': 0.633, '$': 0.633, '%': 0.951, '&': 0.712, "'": 0.303,
+  '(': 0.387, ')': 0.387, '*': 0.465, '+': 0.633, ',': 0.303, '-': 0.465, '.': 0.303, '/': 0.304,
+  '0': 0.637, '1': 0.469, '2': 0.606, '3': 0.630, '4': 0.648, '5': 0.623, '6': 0.642, '7': 0.589,
+  '8': 0.647, '9': 0.642, ':': 0.303, ';': 0.303, '<': 0.633, '=': 0.633, '>': 0.633, '?': 0.517,
+  '@': 0.910, 'A': 0.683, 'B': 0.659, 'C': 0.713, 'D': 0.723, 'E': 0.594, 'F': 0.570, 'G': 0.740,
+  'H': 0.745, 'I': 0.274, 'J': 0.548, 'K': 0.665, 'L': 0.566, 'M': 0.874, 'N': 0.740, 'O': 0.766,
+  'P': 0.637, 'Q': 0.766, 'R': 0.656, 'S': 0.639, 'T': 0.632, 'U': 0.734, 'V': 0.679, 'W': 0.971,
+  'X': 0.685, 'Y': 0.662, 'Z': 0.656, '[': 0.387, '\\': 0.304, ']': 0.387, '^': 0.633, '_': 0.550,
+  '`': 0.489, 'a': 0.554, 'b': 0.616, 'c': 0.558, 'd': 0.616, 'e': 0.570, 'f': 0.368, 'g': 0.611,
+  'h': 0.592, 'i': 0.250, 'j': 0.250, 'k': 0.552, 'l': 0.256, 'm': 0.880, 'n': 0.587, 'o': 0.590,
+  'p': 0.612, 'q': 0.611, 'r': 0.396, 's': 0.518, 't': 0.371, 'u': 0.587, 'v': 0.545, 'w': 0.788,
+  'x': 0.532, 'y': 0.550, 'z': 0.538, '{': 0.387, '|': 0.262, '}': 0.387, '~': 0.633,
+  // Common typographic characters, which the code-point defaults below misjudge
+  ' ': 0.263, '‘': 0.303, '’': 0.303, '“': 0.480, '”': 0.480, '–': 0.587, '—': 0.881, '…': 0.844,
+  '•': 0.465, '·': 0.303, '→': 0.908, '←': 0.908, '«': 0.663, '»': 0.663, '€': 0.643, '£': 0.633,
+  '©': 0.885, '™': 0.846
+};
+const DEFAULT_CHAR_WIDTH = 0.65; // accented Latin, Greek, Cyrillic, etc.
+const WIDE_CHAR_WIDTH = 1.0; // CJK, emoji and other full-width characters
+
+const charWidth = (ch) => {
+  const em = CHAR_WIDTHS[ch] ?? (ch.codePointAt(0) >= 0x1100 ? WIDE_CHAR_WIDTH : DEFAULT_CHAR_WIDTH);
+  return em * CARD_FONT_SIZE;
+};
+
+// Estimate how many lines a card title wraps to. SVG can't size a box to fit
+// its text, so card heights are computed here by replaying the browser's
+// greedy word wrap, breaking mid-word only when a word is wider than a whole
+// line (word-wrap: break-word). Words split only on whitespace browsers wrap
+// at, so non-breaking spaces stay inside a word.
+const estimateTitleLines = (title) => {
+  const spaceWidth = charWidth(' ');
+  let lines = 1;
+  let lineWidth = 0;
+
+  for (const word of String(title || '').trim().split(/[ \t\n\r\f]+/)) {
+    const chars = Array.from(word);
+    const wordWidth = chars.reduce((sum, ch) => sum + charWidth(ch), 0);
+
+    if (lineWidth > 0 && lineWidth + spaceWidth + wordWidth <= CARD_TEXT_WIDTH) {
+      lineWidth += spaceWidth + wordWidth;
+      continue;
+    }
+    if (lineWidth > 0) {
+      lines++;
+      lineWidth = 0;
+    }
+    if (wordWidth <= CARD_TEXT_WIDTH) {
+      lineWidth = wordWidth;
+      continue;
+    }
+    for (const ch of chars) {
+      if (lineWidth + charWidth(ch) > CARD_TEXT_WIDTH) {
+        lines++;
+        lineWidth = 0;
+      }
+      lineWidth += charWidth(ch);
+    }
+  }
+
+  return lines;
+};
+
+// Line count and height of an issue's card. Titles of CARD_MIN_LINES or fewer
+// get the standard card; longer titles grow it a line at a time.
+const measureCard = (issue) => {
+  const lines = Math.max(CARD_MIN_LINES, estimateTitleLines(issue.title));
+  return { lines, height: CARD_MIN_HEIGHT + (lines - CARD_MIN_LINES) * CARD_LINE_HEIGHT };
+};
 
 // The labels that classify an issue into a roadmap column. fetchIssues queries
 // GitHub for each of these separately (the labels query param is AND-only, so
@@ -38,6 +120,16 @@ const hexToRgba = (hex, alpha) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
+// Escape text for interpolation into SVG/HTML markup and attribute values.
+// Issue titles and label names are user-controlled, so they must never be
+// written into markup raw.
+const escapeXml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
 // Group issues by 'Roadmap Group: *' labels within a column
 const groupIssues = (issues) => {
   const groupMap = new Map();
@@ -62,7 +154,7 @@ const groupIssues = (issues) => {
 
 // Calculate total column content height for a grouped column (kept for backward compat)
 const calculateColumnHeight = (groupedData) => {
-  const totalIssues = groupedData.groups.reduce((sum, g) => sum + g.issues.length, 0) + groupedData.ungrouped.length;
+  const allIssues = [...groupedData.groups.flatMap(g => g.issues), ...groupedData.ungrouped];
   const numGroups = groupedData.groups.length;
   const interGroupGaps = Math.max(0, numGroups - 1)
     + (groupedData.ungrouped.length > 0 && numGroups > 0 ? 1 : 0);
@@ -70,24 +162,41 @@ const calculateColumnHeight = (groupedData) => {
   return COLUMN_HEADER_HEIGHT
     + numGroups * GROUP_HEADER_HEIGHT
     + interGroupGaps * INTER_GROUP_GAP
-    + totalIssues * CARD_SLOT_HEIGHT;
+    + allIssues.reduce((sum, issue) => sum + measureCard(issue).height + CARD_GAP, 0);
 };
 
-// Build global layout that synchronizes group bands across all three columns
+// Build global layout that synchronizes group bands across all three columns.
+// Also returns `cards`: each column's card positions ({ issue, y, height, lines })
+// in render order — the single source of card geometry for the SVG and the
+// embed/html image maps.
 const buildGlobalLayout = (columns) => {
   const cols = [columns.now, columns.next, columns.later];
+  const cards = { now: [], next: [], later: [] };
+
+  // Stack a column's issues downward from yStart, recording each card's
+  // position, and return the stack's height (each card plus the gap below it).
+  const stackCards = (key, issues, yStart) => {
+    let y = yStart;
+    for (const issue of issues) {
+      const { lines, height } = measureCard(issue);
+      cards[key].push({ issue, y, height, lines });
+      y += height + CARD_GAP;
+    }
+    return y - yStart;
+  };
 
   // Check if any column has groups
   const hasAnyGroups = cols.some(col => col.groups.length > 0);
 
   if (!hasAnyGroups) {
     // No grouping - flat layout (backward compatible)
-    const maxCards = Math.max(...cols.map(col => col.ungrouped.length));
+    const maxStackHeight = Math.max(...COLUMN_KEYS.map(key => stackCards(key, columns[key].ungrouped, COLUMN_HEADER_HEIGHT)));
     return {
       hasGroups: false,
       bands: [],
       ungroupedBand: null,
-      totalHeight: COLUMN_HEADER_HEIGHT + maxCards * CARD_SLOT_HEIGHT
+      cards,
+      totalHeight: COLUMN_HEADER_HEIGHT + maxStackHeight
     };
   }
 
@@ -117,16 +226,20 @@ const buildGlobalLayout = (columns) => {
     };
 
     const maxCards = Math.max(...cols.map(col => getGroupCardCount(col, name)));
+    const maxStackHeight = Math.max(...COLUMN_KEYS.map(key => {
+      const group = columns[key].groups.find(g => g.name === name);
+      return group ? stackCards(key, group.issues, y + GROUP_HEADER_HEIGHT) : 0;
+    }));
 
     bands.push({
       name,
       color: groupInfo.get(name),
       yStart: y,
       maxCards,
-      bandHeight: GROUP_HEADER_HEIGHT + maxCards * CARD_SLOT_HEIGHT
+      bandHeight: GROUP_HEADER_HEIGHT + maxStackHeight
     });
 
-    y += GROUP_HEADER_HEIGHT + maxCards * CARD_SLOT_HEIGHT;
+    y += GROUP_HEADER_HEIGHT + maxStackHeight;
   }
 
   // Ungrouped band (labeled "Other")
@@ -136,12 +249,13 @@ const buildGlobalLayout = (columns) => {
   if (hasUngrouped) {
     y += INTER_GROUP_GAP;
     const maxUngroupedCards = Math.max(...cols.map(col => col.ungrouped.length));
+    const maxStackHeight = Math.max(...COLUMN_KEYS.map(key => stackCards(key, columns[key].ungrouped, y + GROUP_HEADER_HEIGHT)));
     ungroupedBand = {
       name: UNGROUPED_LABEL,
       color: null,
       yStart: y,
       maxCards: maxUngroupedCards,
-      bandHeight: GROUP_HEADER_HEIGHT + maxUngroupedCards * CARD_SLOT_HEIGHT
+      bandHeight: GROUP_HEADER_HEIGHT + maxStackHeight
     };
     y += ungroupedBand.bandHeight;
   }
@@ -150,58 +264,33 @@ const buildGlobalLayout = (columns) => {
     hasGroups: true,
     bands,
     ungroupedBand,
+    cards,
     totalHeight: y
   };
 };
 
-const createColumn = (title, subtitle, groupedData, xPosition, className, layout, headerColor, subheaderColor, backgroundColor, cardBackground, cardTextColor, shadowColor, hoverShadowColor) => {
-  let cardsSvg = '';
-
-  const renderCard = (issue, yPos) => {
+const createColumn = (title, subtitle, cards, xPosition, className, headerColor, subheaderColor, backgroundColor, cardBackground, cardTextColor, shadowColor, hoverShadowColor) => {
+  // The title box sits inside the card (x 35, y 23) and is exactly `lines`
+  // tall, with no padding: lines past the clamp would otherwise render into
+  // the padding and show half-cut under the ellipsis.
+  const renderCard = ({ issue, y, height, lines }) => {
     const labelColor = issue.labelColor ? `#${issue.labelColor}` : '#8b949e';
     return `
-      <a href="${issue.html_url}" target="_blank" rel="noopener noreferrer">
-        <g transform="translate(0, ${yPos})" class="roadmap-card" style="cursor: pointer; --accent-color: ${labelColor};">
-          <rect x="15" y="0" width="350" height="75" rx="8" ry="8" style="fill: ${cardBackground}; filter: drop-shadow(0 1px 3px ${shadowColor});"></rect>
+      <a href="${escapeXml(issue.html_url)}" target="_blank" rel="noopener noreferrer">
+        <g transform="translate(0, ${y})" class="roadmap-card" style="cursor: pointer; --accent-color: ${labelColor};">
+          <rect x="15" y="0" width="350" height="${height}" rx="8" ry="8" style="fill: ${cardBackground}; filter: drop-shadow(0 1px 3px ${shadowColor});"></rect>
           <rect x="15" y="0" width="350" height="4" rx="8" ry="8" style="fill: ${labelColor};"></rect>
-          <foreignObject x="25" y="15" width="330" height="55" style="pointer-events: none;">
+          <foreignObject x="35" y="23" width="${CARD_TEXT_WIDTH}" height="${lines * CARD_LINE_HEIGHT}" style="pointer-events: none;">
             <body xmlns="http://www.w3.org/1999/xhtml" style="margin: 0;">
-              <div style="font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-weight: 500; color: ${cardTextColor}; line-height: 1.4; padding: 8px 10px; word-wrap: break-word; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; pointer-events: none; cursor: pointer; user-select: none;">${issue.title}</div>
+              <div style="font-size: ${CARD_FONT_SIZE}px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-weight: 500; color: ${cardTextColor}; line-height: ${CARD_LINE_HEIGHT}px; word-wrap: break-word; overflow: hidden; display: -webkit-box; -webkit-line-clamp: ${lines}; -webkit-box-orient: vertical; pointer-events: none; cursor: pointer; user-select: none;">${escapeXml(issue.title)}</div>
             </body>
           </foreignObject>
         </g>
       </a>`;
   };
 
-  if (!layout.hasGroups) {
-    // No groups anywhere - flat rendering (backward compatible)
-    let y = COLUMN_HEADER_HEIGHT;
-    groupedData.ungrouped.forEach(issue => {
-      cardsSvg += renderCard(issue, y);
-      y += CARD_SLOT_HEIGHT;
-    });
-  } else {
-    // Render cards at synchronized global band positions (containers rendered at SVG root)
-    for (const band of layout.bands) {
-      const group = groupedData.groups.find(g => g.name === band.name);
-      if (group) {
-        let y = band.yStart + GROUP_HEADER_HEIGHT;
-        group.issues.forEach(issue => {
-          cardsSvg += renderCard(issue, y);
-          y += CARD_SLOT_HEIGHT;
-        });
-      }
-    }
-
-    // Render ungrouped cards
-    if (layout.ungroupedBand) {
-      let y = layout.ungroupedBand.yStart + GROUP_HEADER_HEIGHT;
-      groupedData.ungrouped.forEach(issue => {
-        cardsSvg += renderCard(issue, y);
-        y += CARD_SLOT_HEIGHT;
-      });
-    }
-  }
+  // Cards are positioned by buildGlobalLayout (group containers are rendered at the SVG root)
+  const cardsSvg = cards.map(renderCard).join('');
 
   return `
   <g transform="translate(${xPosition}, 0)" class="${className}">
@@ -257,21 +346,21 @@ const generateRoadmapSVG = (issues, bgColor, textColor) => {
     // Render full-width group containers (behind column content)
     let groupContainersSvg = '';
     if (layout.hasGroups) {
-      const renderFullWidthContainer = (name, color, yStart, maxCards) => {
+      const renderFullWidthContainer = (name, color, yStart, maxCards, bandHeight) => {
         const groupColor = color ? `#${color}` : '#8b949e';
         const containerHeight = maxCards > 0
-          ? GROUP_HEADER_HEIGHT + maxCards * CARD_SLOT_HEIGHT - 12
+          ? bandHeight - 12
           : 28;
         return `
       <rect x="5" y="${yStart}" width="1130" height="${containerHeight}" rx="12" ry="12" style="fill: ${cardBackground}; filter: drop-shadow(0 1px 3px ${shadowColor});"></rect>
-      <text x="570" y="${yStart + 22}" style="font-size: 13px; text-anchor: middle; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-weight: 600; fill: ${headerColor}; opacity: 0.7;">${name}</text>`;
+      <text x="570" y="${yStart + 22}" style="font-size: 13px; text-anchor: middle; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-weight: 600; fill: ${headerColor}; opacity: 0.7;">${escapeXml(name)}</text>`;
       };
 
       for (const band of layout.bands) {
-        groupContainersSvg += renderFullWidthContainer(band.name, band.color, band.yStart, band.maxCards);
+        groupContainersSvg += renderFullWidthContainer(band.name, band.color, band.yStart, band.maxCards, band.bandHeight);
       }
       if (layout.ungroupedBand) {
-        groupContainersSvg += renderFullWidthContainer(layout.ungroupedBand.name, layout.ungroupedBand.color, layout.ungroupedBand.yStart, layout.ungroupedBand.maxCards);
+        groupContainersSvg += renderFullWidthContainer(layout.ungroupedBand.name, layout.ungroupedBand.color, layout.ungroupedBand.yStart, layout.ungroupedBand.maxCards, layout.ungroupedBand.bandHeight);
       }
     }
 
@@ -287,9 +376,9 @@ const generateRoadmapSVG = (issues, bgColor, textColor) => {
         </style>
       </defs>
       ${groupContainersSvg}
-      ${createColumn('Now', "We're working on it right now", columns.now, 0, 'now', layout, headerColor, subheaderColor, backgroundColor, cardBackground, cardTextColor, shadowColor, hoverShadowColor)}
-      ${createColumn('Next', "Coming up next", columns.next, 380, 'next', layout, headerColor, subheaderColor, backgroundColor, cardBackground, cardTextColor, shadowColor, hoverShadowColor)}
-      ${createColumn('Later', "On the horizon", columns.later, 760, 'later', layout, headerColor, subheaderColor, backgroundColor, cardBackground, cardTextColor, shadowColor, hoverShadowColor)}
+      ${createColumn('Now', "We're working on it right now", layout.cards.now, 0, 'now', headerColor, subheaderColor, backgroundColor, cardBackground, cardTextColor, shadowColor, hoverShadowColor)}
+      ${createColumn('Next', "Coming up next", layout.cards.next, 380, 'next', headerColor, subheaderColor, backgroundColor, cardBackground, cardTextColor, shadowColor, hoverShadowColor)}
+      ${createColumn('Later', "On the horizon", layout.cards.later, 760, 'later', headerColor, subheaderColor, backgroundColor, cardBackground, cardTextColor, shadowColor, hoverShadowColor)}
       <text x="570" y="${footerY + 15}" style="font-size: 12px; text-anchor: middle; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-weight: 400; fill: ${subheaderColor};">Roadmaps are cached for 60 minutes</text>
     </svg>
   `;
@@ -387,11 +476,16 @@ module.exports = {
     validateHexColor,
     normalizeHex,
     hexToRgba,
+    escapeXml,
     groupIssues,
     buildGlobalLayout,
     calculateColumnHeight,
+    estimateTitleLines,
     COLUMN_HEADER_HEIGHT,
     CARD_SLOT_HEIGHT,
+    CARD_MIN_HEIGHT,
+    CARD_LINE_HEIGHT,
+    CARD_GAP,
     GROUP_HEADER_HEIGHT,
     INTER_GROUP_GAP,
     GROUP_LABEL_PREFIX,

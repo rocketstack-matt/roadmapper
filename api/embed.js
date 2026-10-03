@@ -1,4 +1,4 @@
-const { fetchIssues, groupIssues, buildGlobalLayout, COLUMN_HEADER_HEIGHT, CARD_SLOT_HEIGHT, GROUP_HEADER_HEIGHT } = require('../roadmap');
+const { fetchIssues, groupIssues, buildGlobalLayout, escapeXml } = require('../roadmap');
 
 const { withMiddleware } = require('../lib/middleware');
 const { gaSnippet } = require('../lib/analytics');
@@ -55,57 +55,23 @@ const handler = async (req, res) => {
 
     const imageUrl = `${baseUrl}/${owner}/${repo}/${bgColor}/${textColor}`;
 
-    // Generate image map areas for each card using global layout coordinates
-    const createGroupedAreas = (groupedData, columnIndex) => {
-      const areas = [];
-
-      const pushArea = (issue, xOffset, y) => {
+    // Generate image map areas for each card from the layout's card positions
+    const createAreas = (cards, columnIndex) => {
+      const xOffset = columnIndex * 380;
+      return cards.map(({ issue, y, height }) => {
         const x1 = xOffset + 15;
         const y1 = y;
         const x2 = xOffset + 365;
-        const y2 = y + 75;
+        const y2 = y + height;
         const labelColor = issue.labelColor ? `#${issue.labelColor}` : '#8b949e';
-        const escapedTitle = issue.title.replace(/"/g, '&quot;');
-        areas.push(`<area shape="rect" coords="${x1},${y1},${x2},${y2}" href="${issue.html_url}" alt="${escapedTitle}" data-color="${labelColor}" target="_blank">`);
-      };
-
-      if (!layout.hasGroups) {
-        // Flat layout - no groups
-        let y = COLUMN_HEADER_HEIGHT;
-        groupedData.ungrouped.forEach(issue => {
-          pushArea(issue, columnIndex * 380, y);
-          y += CARD_SLOT_HEIGHT;
-        });
-      } else {
-        // Global band positions
-        for (const band of layout.bands) {
-          const group = groupedData.groups.find(g => g.name === band.name);
-          if (group) {
-            let y = band.yStart + GROUP_HEADER_HEIGHT;
-            group.issues.forEach(issue => {
-              pushArea(issue, columnIndex * 380, y);
-              y += CARD_SLOT_HEIGHT;
-            });
-          }
-        }
-
-        // Ungrouped band
-        if (layout.ungroupedBand) {
-          let y = layout.ungroupedBand.yStart + GROUP_HEADER_HEIGHT;
-          groupedData.ungrouped.forEach(issue => {
-            pushArea(issue, columnIndex * 380, y);
-            y += CARD_SLOT_HEIGHT;
-          });
-        }
-      }
-
-      return areas.join('\n      ');
+        return `<area shape="rect" coords="${x1},${y1},${x2},${y2}" href="${escapeXml(issue.html_url)}" alt="${escapeXml(issue.title)}" data-color="${labelColor}" target="_blank">`;
+      }).join('\n      ');
     };
 
     const mapAreas = `
-      ${createGroupedAreas(columns.now, 0)}
-      ${createGroupedAreas(columns.next, 1)}
-      ${createGroupedAreas(columns.later, 2)}
+      ${createAreas(layout.cards.now, 0)}
+      ${createAreas(layout.cards.next, 1)}
+      ${createAreas(layout.cards.later, 2)}
     `;
 
     const html = `<!DOCTYPE html>

@@ -9,8 +9,13 @@ const {
   groupIssues,
   buildGlobalLayout,
   calculateColumnHeight,
+  estimateTitleLines,
+  escapeXml,
   COLUMN_HEADER_HEIGHT,
   CARD_SLOT_HEIGHT,
+  CARD_MIN_HEIGHT,
+  CARD_LINE_HEIGHT,
+  CARD_GAP,
   GROUP_HEADER_HEIGHT,
   INTER_GROUP_GAP,
   GROUP_LABEL_PREFIX,
@@ -547,6 +552,187 @@ describe('buildGlobalLayout', () => {
     expect(layout.bands).toHaveLength(1);
     expect(layout.bands[0].name).toBe('Solo');
     expect(layout.bands[0].maxCards).toBe(1);
+  });
+});
+
+// Wraps to 3 lines in a browser at the card's 310px text width
+const LONG_TITLE = 'Publish @finos/calm-models as the canonical CALM library + extract @finos/calm-io adapters';
+const longIssue = (number, labelName, extraLabels = []) => ({
+  number,
+  title: LONG_TITLE,
+  html_url: `https://github.com/owner/repo/issues/${number}`,
+  labels: [{ name: labelName, color: '2da44e' }, ...extraLabels]
+});
+
+describe('estimateTitleLines', () => {
+  test('returns 1 for a short title', () => {
+    expect(estimateTitleLines('Fix login bug')).toBe(1);
+  });
+
+  test('returns 1 for a missing or empty title', () => {
+    expect(estimateTitleLines(undefined)).toBe(1);
+    expect(estimateTitleLines('')).toBe(1);
+  });
+
+  test('wraps a long title onto multiple lines', () => {
+    expect(estimateTitleLines(LONG_TITLE)).toBe(3);
+  });
+
+  test('breaks a single word that is wider than the card', () => {
+    // 'm' is ~12.3px at 14px, so ~25 fit per line
+    expect(estimateTitleLines('m'.repeat(60))).toBe(3);
+  });
+
+  test('treats CJK characters as full-width', () => {
+    // 14px each, so 22 fit per line
+    expect(estimateTitleLines('路'.repeat(30))).toBe(2);
+  });
+
+  test('uses real widths for narrow typographic punctuation', () => {
+    // Curly apostrophes are ~4.2px, so 60 fit on one line in a browser
+    expect(estimateTitleLines('’'.repeat(60))).toBe(1);
+  });
+
+  test('uses real widths for wide symbols', () => {
+    // '©' is ~12.4px, so 30 wrap onto a second line in a browser
+    expect(estimateTitleLines('©'.repeat(30))).toBe(2);
+  });
+
+  test('does not wrap at a non-breaking space', () => {
+    // 'mmm mmm…' must move to the next line as a unit, pushing the last word to line 3
+    expect(estimateTitleLines('m'.repeat(20) + ' mmm ' + 'm'.repeat(20) + ' mmm')).toBe(3);
+  });
+});
+
+describe('dynamic card heights', () => {
+  test('cards keep the minimum height for titles of two lines or fewer', () => {
+    const columns = {
+      now: { groups: [], ungrouped: [createMockIssue(1, 'Short', 'Roadmap: Now', '2da44e')] },
+      next: { groups: [], ungrouped: [] },
+      later: { groups: [], ungrouped: [] }
+    };
+    const layout = buildGlobalLayout(columns);
+    expect(layout.cards.now[0].height).toBe(CARD_MIN_HEIGHT);
+    expect(layout.cards.now[0].lines).toBe(2);
+  });
+
+  test('cards grow one line height per extra line of title', () => {
+    const columns = {
+      now: { groups: [], ungrouped: [longIssue(1, 'Roadmap: Now')] },
+      next: { groups: [], ungrouped: [] },
+      later: { groups: [], ungrouped: [] }
+    };
+    const layout = buildGlobalLayout(columns);
+    expect(layout.cards.now[0].height).toBe(CARD_MIN_HEIGHT + CARD_LINE_HEIGHT);
+    expect(layout.cards.now[0].lines).toBe(3);
+  });
+
+  test('cards below a tall card are pushed down by its extra height', () => {
+    const columns = {
+      now: { groups: [], ungrouped: [longIssue(1, 'Roadmap: Now'), createMockIssue(2, 'Short', 'Roadmap: Now', '2da44e')] },
+      next: { groups: [], ungrouped: [] },
+      later: { groups: [], ungrouped: [] }
+    };
+    const layout = buildGlobalLayout(columns);
+    expect(layout.cards.now[0].y).toBe(COLUMN_HEADER_HEIGHT);
+    expect(layout.cards.now[1].y).toBe(COLUMN_HEADER_HEIGHT + CARD_MIN_HEIGHT + CARD_LINE_HEIGHT + CARD_GAP);
+  });
+
+  test('flat layout height uses the tallest column stack, not the most cards', () => {
+    // Now: 1 tall card (95 + 20). Next: 1 short card (75 + 20).
+    const columns = {
+      now: { groups: [], ungrouped: [longIssue(1, 'Roadmap: Now')] },
+      next: { groups: [], ungrouped: [createMockIssue(2, 'Short', 'Roadmap: Next', 'fb8500')] },
+      later: { groups: [], ungrouped: [] }
+    };
+    const layout = buildGlobalLayout(columns);
+    expect(layout.totalHeight).toBe(COLUMN_HEADER_HEIGHT + CARD_MIN_HEIGHT + CARD_LINE_HEIGHT + CARD_GAP);
+  });
+
+  test('band height grows to fit tall cards and shifts later bands down', () => {
+    const groupA = { name: 'Roadmap Group: A', color: 'aaa' };
+    const groupB = { name: 'Roadmap Group: B', color: 'bbb' };
+    const columns = {
+      now: groupIssues([longIssue(1, 'Roadmap: Now', [groupA]), { ...createMockIssue(2, 'Short', 'Roadmap: Now', '2da44e'), labels: [{ name: 'Roadmap: Now', color: '2da44e' }, groupB] }]),
+      next: { groups: [], ungrouped: [] },
+      later: { groups: [], ungrouped: [] }
+    };
+    const layout = buildGlobalLayout(columns);
+    const tallSlot = CARD_MIN_HEIGHT + CARD_LINE_HEIGHT + CARD_GAP;
+    expect(layout.bands[0].bandHeight).toBe(GROUP_HEADER_HEIGHT + tallSlot);
+    expect(layout.bands[1].yStart).toBe(COLUMN_HEADER_HEIGHT + GROUP_HEADER_HEIGHT + tallSlot + INTER_GROUP_GAP);
+    expect(layout.cards.now[1].y).toBe(layout.bands[1].yStart + GROUP_HEADER_HEIGHT);
+  });
+
+  test('calculateColumnHeight accounts for tall cards', () => {
+    const result = calculateColumnHeight({ groups: [], ungrouped: [longIssue(1, 'Roadmap: Now')] });
+    expect(result).toBe(COLUMN_HEADER_HEIGHT + CARD_MIN_HEIGHT + CARD_LINE_HEIGHT + CARD_GAP);
+  });
+
+  test('renders a tall card with matching rect, text box and line clamp', () => {
+    const svg = generateRoadmapSVG([longIssue(1, 'Roadmap: Later')], 'ffffff', '24292f');
+    const height = CARD_MIN_HEIGHT + CARD_LINE_HEIGHT;
+    expect(svg).toContain(`width="350" height="${height}"`);
+    expect(svg).toContain(`width="310" height="${3 * CARD_LINE_HEIGHT}"`);
+    expect(svg).toContain('-webkit-line-clamp: 3');
+  });
+
+  test('renders short cards at the minimum height with a two-line clamp', () => {
+    const svg = generateRoadmapSVG([createMockIssue(1, 'Short', 'Roadmap: Now', '2da44e')], 'ffffff', '24292f');
+    expect(svg).toContain(`width="350" height="${CARD_MIN_HEIGHT}"`);
+    expect(svg).toContain('-webkit-line-clamp: 2');
+  });
+
+  test('title text box has no padding for clamped lines to bleed into', () => {
+    // Overflowing lines past the clamp render into an element's own padding,
+    // which showed a half-visible extra line under long titles.
+    const svg = generateRoadmapSVG([longIssue(1, 'Roadmap: Now')], 'ffffff', '24292f');
+    const titleDivStyle = svg.match(/<div style="([^"]*font-weight: 500[^"]*)">/)[1];
+    expect(titleDivStyle).not.toContain('padding');
+  });
+
+  test('SVG height grows to fit tall cards', () => {
+    const short = generateRoadmapSVG([createMockIssue(1, 'Short', 'Roadmap: Now', '2da44e')], 'ffffff', '24292f');
+    const tall = generateRoadmapSVG([longIssue(1, 'Roadmap: Now')], 'ffffff', '24292f');
+    const viewBoxHeight = (svg) => Number(svg.match(/viewBox="0 0 1140 (\d+)"/)[1]);
+    expect(viewBoxHeight(tall) - viewBoxHeight(short)).toBe(CARD_LINE_HEIGHT);
+  });
+});
+
+describe('escapeXml', () => {
+  test('escapes the five XML special characters', () => {
+    expect(escapeXml(`a & b < c > d " e ' f`)).toBe('a &amp; b &lt; c &gt; d &quot; e &#39; f');
+  });
+
+  test('returns an empty string for missing values', () => {
+    expect(escapeXml(undefined)).toBe('');
+  });
+});
+
+describe('generateRoadmapSVG escaping', () => {
+  test('escapes markup characters in issue titles', () => {
+    const svg = generateRoadmapSVG([createMockIssue(1, 'R&D: render <b>bold</b>', 'Roadmap: Now', '2da44e')], 'ffffff', '24292f');
+    expect(svg).toContain('R&amp;D: render &lt;b&gt;bold&lt;/b&gt;');
+    expect(svg).not.toContain('<b>bold</b>');
+  });
+
+  test('escapes group names', () => {
+    const issue = createMockIssue(1, 'A', 'Roadmap: Now', '2da44e');
+    issue.labels.push({ name: 'Roadmap Group: R&D <x>', color: 'aaa' });
+    const svg = generateRoadmapSVG([issue], 'ffffff', '24292f');
+    expect(svg).toContain('>R&amp;D &lt;x&gt;</text>');
+  });
+
+  test('escapes issue URLs in card links', () => {
+    const issue = { ...createMockIssue(1, 'A', 'Roadmap: Now', '2da44e'), html_url: 'https://example.com/?a=1&b=2' };
+    const svg = generateRoadmapSVG([issue], 'ffffff', '24292f');
+    expect(svg).toContain('href="https://example.com/?a=1&amp;b=2"');
+  });
+
+  test('sizes cards from the raw title, not the escaped one', () => {
+    // 40 '&' fit in 2 lines; their escaped form (&amp; x 40) would not
+    const svg = generateRoadmapSVG([createMockIssue(1, '&'.repeat(40), 'Roadmap: Now', '2da44e')], 'ffffff', '24292f');
+    expect(svg).toContain('-webkit-line-clamp: 2');
   });
 });
 
