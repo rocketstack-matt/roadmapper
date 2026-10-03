@@ -109,6 +109,7 @@ Roadmapper requires per-repository registration. Repo owners register via the la
 - `lib/cache.js`: GitHub issues response caching with ETag support and application-level freshness
 - `lib/ratelimit.js`: Per-repo and per-IP rate limiting using `@upstash/ratelimit`
 - `lib/email.js`: Resend email client with graceful fallback (`isEmailConfigured`, `sendConfirmationEmail`)
+- `lib/analytics.js`: Google Analytics — `gaSnippet()` (gtag snippet for every HTML page's `<head>`) and `trackEvent()` (server-side Measurement Protocol events). Both read `GA_MEASUREMENT_ID` trimmed, so a stray newline in the env value can't break the inline script
 - `lib/middleware.js`: `withMiddleware()` HOF — auth, verification, rate limiting, error responses
 
 ### Middleware (`lib/middleware.js`)
@@ -386,6 +387,7 @@ Example: `http://localhost:5002/rocketstack-matt/roadmapper/ffffff/24292f`
 - `api/confirm.js`: Email confirmation endpoint (GET)
 - `lib/redis.js`: Upstash Redis client with no-op fallback
 - `lib/email.js`: Resend email client with graceful fallback
+- `lib/analytics.js`: Google Analytics snippet and server-side events
 - `lib/tiers.js`: Tier configuration (limits, cache TTLs)
 - `lib/keys.js`: API key generation, hashing, storage, lookup
 - `lib/verify.js`: Repo verification via `.roadmapper` file
@@ -412,6 +414,8 @@ Example: `http://localhost:5002/rocketstack-matt/roadmapper/ffffff/24292f`
 | `UPSTASH_REDIS_REST_TOKEN` | Optional | Upstash Redis REST token |
 | `RESEND_API_KEY` | Optional | Resend API key for email confirmation. Without it: keys work immediately |
 | `FROM_EMAIL` | Optional | Sender email address (default: `Roadmapper <noreply@roadmapper.rocketstack.co>`) |
+| `GA_MEASUREMENT_ID` | Optional | Google Analytics measurement ID (`G-…`). Adds the gtag snippet to HTML pages; trimmed before use |
+| `GA_API_SECRET` | Optional | Measurement Protocol API secret; with `GA_MEASUREMENT_ID`, enables server-side `trackEvent()` |
 
 **Local development without Redis:** All endpoints work unrestricted. Middleware is skipped, no registration required, no rate limits, no caching. This is the default for local development.
 

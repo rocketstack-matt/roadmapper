@@ -1,4 +1,5 @@
 const { withMiddleware } = require('../lib/middleware');
+const { gaSnippet } = require('../lib/analytics');
 
 const handler = async (req, res) => {
   // Extract the path from the URL
@@ -28,17 +29,12 @@ const handler = async (req, res) => {
 
   const svgUrl = `${baseUrl}/${owner}/${repo}/${bgColor}/${textColor}`;
 
-  const gaId = process.env.GA_MEASUREMENT_ID;
-  const gaSnippet = gaId ? `
-  <script async src="https://www.googletagmanager.com/gtag/js?id=${gaId}"></script>
-  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${gaId}');</script>` : '';
-
   const html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">${gaSnippet}
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">${gaSnippet()}
   <title>${owner}/${repo} - Roadmap</title>
   <style>
     :root {
