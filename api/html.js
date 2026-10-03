@@ -1,4 +1,4 @@
-const { fetchIssues } = require('../roadmap');
+const { fetchIssues, groupIssues, buildGlobalLayout, escapeXml } = require('../roadmap');
 
 const { withMiddleware } = require('../lib/middleware');
 
@@ -35,36 +35,34 @@ const handler = async (req, res) => {
     issues.sort((a, b) => a.number - b.number);
 
     const columns = {
-      now: issues.filter(issue => issue.labels.some(label => label.name === 'Roadmap: Now')),
-      next: issues.filter(issue => issue.labels.some(label => label.name === 'Roadmap: Next')),
-      later: issues.filter(issue => issue.labels.some(label => label.name === 'Roadmap: Later'))
+      now: groupIssues(issues.filter(issue => issue.labels.some(label => label.name === 'Roadmap: Now'))),
+      next: groupIssues(issues.filter(issue => issue.labels.some(label => label.name === 'Roadmap: Next'))),
+      later: groupIssues(issues.filter(issue => issue.labels.some(label => label.name === 'Roadmap: Later')))
     };
 
-    const maxItemsCount = Math.max(columns.now.length, columns.next.length, columns.later.length);
-    const svgHeight = 140 + (maxItemsCount * 95);
+    const layout = buildGlobalLayout(columns);
 
     const imageUrl = `${baseUrl}/${owner}/${repo}/${bgColor}/${textColor}`;
 
-    // Generate image map areas for each card
-    const createAreas = (items, columnIndex) => {
-      return items.map((issue, itemIndex) => {
+    // Generate image map areas for each card from the layout's card positions
+    const createAreas = (cards, columnIndex) => {
+      return cards.map(({ issue, y, height }) => {
         const xOffset = columnIndex * 380;
-        const yOffset = 130 + (itemIndex * 95);
 
         // Card coordinates
         const x1 = xOffset + 15;
-        const y1 = yOffset;
+        const y1 = y;
         const x2 = xOffset + 365;
-        const y2 = yOffset + 75;
+        const y2 = y + height;
 
-        return `    <area shape="rect" coords="${x1},${y1},${x2},${y2}" href="${issue.html_url}" alt="${issue.title.replace(/"/g, '&quot;')}" target="_blank">`;
+        return `    <area shape="rect" coords="${x1},${y1},${x2},${y2}" href="${escapeXml(issue.html_url)}" alt="${escapeXml(issue.title)}" target="_blank">`;
       }).join('\n');
     };
 
     const mapAreas = `
-${createAreas(columns.now, 0)}
-${createAreas(columns.next, 1)}
-${createAreas(columns.later, 2)}`;
+${createAreas(layout.cards.now, 0)}
+${createAreas(layout.cards.next, 1)}
+${createAreas(layout.cards.later, 2)}`;
 
     const htmlSnippet = `<img src="${imageUrl}" alt="${owner}/${repo} Roadmap" usemap="#roadmap-${owner}-${repo}" style="max-width: 100%;">
 <map name="roadmap-${owner}-${repo}">
@@ -285,7 +283,7 @@ ${mapAreas}
         If this doesn't work in your README, use the <a href="${baseUrl}/view/${owner}/${repo}/${bgColor}/${textColor}" style="color: #0969da;">viewer link approach</a> instead.
       </div>
       <p style="margin-bottom: 12px;">Copy and paste this HTML into your README.md:</p>
-      <div class="code-block"><code>${htmlSnippet.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></div>
+      <div class="code-block"><code>${escapeXml(htmlSnippet)}</code></div>
       <button class="copy-btn" onclick="copyCode()">Copy to Clipboard</button>
     </div>
 
@@ -341,7 +339,7 @@ ${mapAreas}
     }
 
     function copyCode() {
-      const code = \`${htmlSnippet.replace(/`/g, '\\`')}\`;
+      const code = ${JSON.stringify(htmlSnippet).replace(/</g, '\\u003c')};
       navigator.clipboard.writeText(code).then(() => {
         const btn = document.querySelector('.copy-btn');
         btn.textContent = 'Copied!';

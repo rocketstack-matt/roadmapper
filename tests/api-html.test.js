@@ -1,8 +1,12 @@
 const { createMockReq, createMockRes, mockIssues } = require('./helpers');
 
-jest.mock('../roadmap', () => ({
-  fetchIssues: jest.fn(),
-}));
+jest.mock('../roadmap', () => {
+  const actual = jest.requireActual('../roadmap');
+  return {
+    ...actual,
+    fetchIssues: jest.fn(),
+  };
+});
 
 const { fetchIssues } = require('../roadmap');
 const htmlHandler = require('../api/html');
@@ -87,6 +91,40 @@ describe('api/html', () => {
     expect(res.body).toContain('coords="395,130,745,205"');
     // Later column (index 2): x1=775, y1=130, x2=1125, y2=205
     expect(res.body).toContain('coords="775,130,1125,205"');
+  });
+
+  test('area coordinates follow dynamic card heights for long titles', async () => {
+    // Wraps to 3 lines, so the card is 75 + 20 = 95px tall
+    const longTitle = 'Publish @finos/calm-models as the canonical CALM library + extract @finos/calm-io adapters';
+    fetchIssues.mockResolvedValue([
+      helpers.createMockIssue(1, longTitle, 'Roadmap: Now', '2da44e'),
+      helpers.createMockIssue(2, 'Short', 'Roadmap: Now', '2da44e'),
+    ]);
+    const req = createMockReq('/html/owner/repo/ffffff/24292f');
+    const res = createMockRes();
+
+    await htmlHandler(req, res);
+
+    // Tall card: y1 = 130, y2 = 130 + 95 = 225
+    expect(res.body).toContain('coords="15,130,365,225"');
+    // Next card: y1 = 225 + 20 (gap) = 245, y2 = 245 + 75 = 320
+    expect(res.body).toContain('coords="15,245,365,320"');
+  });
+
+  test('area coordinates account for group headers', async () => {
+    fetchIssues.mockResolvedValue([
+      { number: 1, title: 'Grouped Card', html_url: 'https://github.com/owner/repo/issues/1', labels: [
+        { name: 'Roadmap: Now', color: '2da44e' },
+        { name: 'Roadmap Group: Frontend', color: 'ff0000' }
+      ]},
+    ]);
+    const req = createMockReq('/html/owner/repo/ffffff/24292f');
+    const res = createMockRes();
+
+    await htmlHandler(req, res);
+
+    // Card y1 = 130 (column header) + 35 (group header) = 165, y2 = 165 + 75 = 240
+    expect(res.body).toContain('coords="15,165,365,240"');
   });
 
   test('includes copy to clipboard functionality', async () => {
@@ -232,6 +270,49 @@ describe('api/html', () => {
     await htmlHandler(req, res);
 
     expect(res.body).toContain('&quot;');
+  });
+
+  test('escapes markup characters in issue titles for alt attributes', async () => {
+    fetchIssues.mockResolvedValue([helpers.createMockIssue(1, 'R&D <b>bold</b>', 'Roadmap: Now', '2da44e')]);
+    const req = createMockReq('/html/owner/repo/ffffff/24292f');
+    const res = createMockRes();
+
+    await htmlHandler(req, res);
+
+    expect(res.body).toContain('alt="R&amp;D &lt;b&gt;bold&lt;/b&gt;"');
+  });
+
+  test('a script tag in an issue title cannot break out of the page markup', async () => {
+    fetchIssues.mockResolvedValue([helpers.createMockIssue(1, '</script><script>window.pwned=1</script>', 'Roadmap: Now', '2da44e')]);
+    const req = createMockReq('/html/owner/repo/ffffff/24292f');
+    const res = createMockRes();
+
+    await htmlHandler(req, res);
+
+    expect(res.body).not.toContain('<script>window.pwned');
+  });
+
+  test('code block display escapes ampersands so it shows the exact snippet source', async () => {
+    fetchIssues.mockResolvedValue([helpers.createMockIssue(1, 'R&D', 'Roadmap: Now', '2da44e')]);
+    const req = createMockReq('/html/owner/repo/ffffff/24292f');
+    const res = createMockRes();
+
+    await htmlHandler(req, res);
+
+    // Snippet source is alt="R&amp;D"; displayed as text that must read the same
+    expect(res.body).toContain('alt=&quot;R&amp;amp;D&quot;');
+  });
+
+  test('copy button copies the snippet verbatim even if a title contains template syntax', async () => {
+    fetchIssues.mockResolvedValue([helpers.createMockIssue(1, 'Cost is ${price} `quoted` \\ slash', 'Roadmap: Now', '2da44e')]);
+    const req = createMockReq('/html/owner/repo/ffffff/24292f');
+    const res = createMockRes();
+
+    await htmlHandler(req, res);
+
+    const codeExpr = res.body.match(/const code = ([\s\S]*?);\s*navigator\.clipboard/)[1];
+    const copied = new Function(`return ${codeExpr};`)();
+    expect(copied).toContain('alt="Cost is ${price} `quoted` \\ slash"');
   });
 
   test('handles trailing slash in URL', async () => {
