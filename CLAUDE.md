@@ -361,6 +361,8 @@ Example: `http://localhost:5002/rocketstack-matt/roadmapper/ffffff/24292f`
 
 ## Dependencies
 
+**Runtime:** Node.js `24.x`, pinned via `engines.node` in `package.json`. This overrides the Vercel project's Node.js Version setting, so the runtime is version-controlled. Vercel deprecated Node 20 on 2026-10-01 (new deployments on 20.x fail). Use an exact major (`24.x`), not an open range — Vercel maps open ranges to its newest major. Local development works on newer Node (e.g. 26), but `npm install` warns `EBADENGINE`; run the tests on the deployed major with `npx -y node@24 node_modules/.bin/jest`.
+
 - `express` (^4.22.1): HTTP server framework for local development
 - `axios` (^1.13.4): HTTP client for GitHub API requests
 - `dotenv` (latest): Environment variable management for local development
@@ -571,6 +573,8 @@ The landing page uses a tabbed interface to show these options clearly.
 The project is deployed to Vercel with automatic deployments on push to `main` branch.
 
 ### Vercel Configuration (`vercel.json`)
+
+Node.js version comes from `engines.node` in `package.json` (24.x); the project setting in the Vercel dashboard is also set to 24.x for branches that predate the pin.
 
 Builds multiple serverless functions:
 - `api/index.js` - Landing page
