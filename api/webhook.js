@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { ROADMAP_LABELS } = require('../roadmap');
 const { invalidateIssues } = require('../lib/cache');
-const { getCachedVerification } = require('../lib/verify');
+const { getKeyTier } = require('../lib/verify');
 const { applyPurchaseEvent } = require('../lib/marketplace');
 const {
   getInstallationTier,
@@ -57,13 +57,10 @@ const touchesRoadmap = (payload) =>
 // Roadmap column and group labels (their names and colours are rendered).
 const isRoadmapLabelName = (name) => typeof name === 'string' && name.startsWith('Roadmap');
 
-// A repo is paid if its installation is, or its own verification is (an App
-// install keeps the tier of a paid .roadmapper key).
-const isPaid = async (installationTier, owner, repo) => {
-  if (installationTier === 'paid') return true;
-  const verification = await getCachedVerification(owner, repo);
-  return !!verification && verification.tier === 'paid';
-};
+// A repo is paid if its installation is, or its own API key is (an App
+// install keeps the tier of a paid .roadmapper key), as verifyRepo() decides.
+const isPaid = async (installationTier, owner, repo) =>
+  installationTier === 'paid' || (await getKeyTier(owner, repo)) === 'paid';
 
 /**
  * Invalidate the cached issues of the repos that are webhook-driven: in an
