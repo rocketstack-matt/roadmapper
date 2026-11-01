@@ -513,6 +513,8 @@ describe('api/webhook', () => {
       expect(res.statusCode).toBe(200);
       expect(get.mock.calls[1][0]).toBe('https://api.github.com/orgs/owner/installation');
       expect(mockStore.has('repo:owner/repo')).toBe(false);
+      // Reconciled with GitHub recently, so the tier read makes no Marketplace lookup
+      mockStore.set('marketplace-checked:77', 'checked');
       expect(await getInstallationTier(42)).toBe('paid');
       get.mockRestore();
       error.mockRestore();

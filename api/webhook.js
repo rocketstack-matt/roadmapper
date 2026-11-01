@@ -153,12 +153,13 @@ const handleLabel = async (payload) => {
  * re-verified so its repos pick up the plan's tier on their next request.
  * If GitHub couldn't be asked for the account's installation, the delivery
  * fails (500) once the linked ones are cleared, so it can be redelivered;
- * re-applying the event is a no-op apart from clearing them again.
+ * re-applying the event is a no-op apart from clearing them again. The
+ * delivery id breaks ties between events with the same effective_date.
  */
-const handleMarketplacePurchase = async (payload) => {
-  const applied = await applyPurchaseEvent(payload);
+const handleMarketplacePurchase = async (payload, deliveryId) => {
+  const applied = await applyPurchaseEvent(payload, { deliveryId });
   if (!applied) return 'ignored';
-  if (!applied.changed) return 'updated';
+  if (!applied.current) return 'updated';
   const { installations, lookupFailed } = await getAccountInstallations(applied.account);
   for (const installationId of installations) {
     await clearInstallationVerifications(installationId);
@@ -205,7 +206,7 @@ const handler = async (req, res) => {
   const event = req.headers['x-github-event'];
   const handleEvent = EVENT_HANDLERS[event];
   try {
-    const result = handleEvent ? await handleEvent(payload) : 'ignored';
+    const result = handleEvent ? await handleEvent(payload, req.headers['x-github-delivery']) : 'ignored';
     if (process.env.VERCEL_ENV !== 'production') {
       console.log(`[webhook] ${event}${payload.action ? `.${payload.action}` : ''} — ${result}`);
     }

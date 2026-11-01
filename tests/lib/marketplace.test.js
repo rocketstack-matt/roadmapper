@@ -2,7 +2,11 @@
 const mockStore = new Map();
 jest.mock('../../lib/redis', () => ({
   get: jest.fn(async (key) => (mockStore.has(key) ? mockStore.get(key) : null)),
-  set: jest.fn(async (key, value) => { mockStore.set(key, value); return 'OK'; }),
+  set: jest.fn(async (key, value, options = {}) => {
+    if (options.nx && mockStore.has(key)) return null;
+    mockStore.set(key, value);
+    return 'OK';
+  }),
   del: jest.fn(async (key) => (mockStore.delete(key) ? 1 : 0)),
   hgetall: jest.fn(async (key) => (mockStore.has(key) ? { ...mockStore.get(key) } : null)),
   hset: jest.fn(async (key, fields) => { mockStore.set(key, { ...(mockStore.get(key) || {}), ...fields }); return 1; }),
@@ -92,7 +96,7 @@ describe('lib/marketplace', () => {
     test('purchased records the plan and the account gets its tier', async () => {
       const result = await applyPurchaseEvent(purchaseEvent('purchased', PAID_PLAN, '2026-11-01T00:00:00+00:00'));
 
-      expect(result).toEqual({ account: { id: '77', login: 'acme', type: 'Organization' }, changed: true });
+      expect(result).toEqual({ account: { id: '77', login: 'acme', type: 'Organization' }, changed: true, current: true });
       expect(mockStore.get('marketplace:77')).toMatchObject({ account: 'acme', planId: '9001', planName: 'Paid', onFreeTrial: 'false' });
       expect(await getMarketplaceTier('77')).toBe('paid');
     });
@@ -219,6 +223,233 @@ describe('lib/marketplace', () => {
       expect(await applyPurchaseEvent(purchaseEvent('refunded', PAID_PLAN, '2026-11-01'))).toBeNull();
       expect(await applyPurchaseEvent({ action: 'purchased' })).toBeNull();
       expect(mockStore.size).toBe(0);
+    });
+  });
+
+  describe('events with the same effective_date', () => {
+    const DATE = '2026-12-01T00:00:00+00:00';
+
+    test('cancelled wins over purchased in either delivery order', async () => {
+      await applyPurchaseEvent(purchaseEvent('cancelled', PAID_PLAN, DATE), { deliveryId: 'a' });
+      const late = await applyPurchaseEvent(purchaseEvent('purchased', PAID_PLAN, DATE), { deliveryId: 'b' });
+      expect(late).toMatchObject({ changed: false, current: false });
+      expect(await getMarketplaceTier('77')).toBe('free');
+
+      mockStore.clear();
+      await applyPurchaseEvent(purchaseEvent('purchased', PAID_PLAN, DATE), { deliveryId: 'b' });
+      expect(await getMarketplaceTier('77')).toBe('paid');
+      const cancelled = await applyPurchaseEvent(purchaseEvent('cancelled', PAID_PLAN, DATE), { deliveryId: 'a' });
+      expect(cancelled.changed).toBe(true);
+      expect(await getMarketplaceTier('77')).toBe('free');
+    });
+
+    test('a redelivered purchased cannot re-grant a cancellation dated the same', async () => {
+      const purchased = purchaseEvent('purchased', PAID_PLAN, DATE);
+      await applyPurchaseEvent(purchased, { deliveryId: 'p' });
+      await applyPurchaseEvent(purchaseEvent('cancelled', PAID_PLAN, DATE), { deliveryId: 'c' });
+      await applyPurchaseEvent(purchased, { deliveryId: 'p' });
+      expect(await getMarketplaceTier('77')).toBe('free');
+    });
+
+    test('changed wins over purchased, and cancelled over changed', async () => {
+      await applyPurchaseEvent(purchaseEvent('changed', PAID_PLAN, DATE), { deliveryId: 'a' });
+      await applyPurchaseEvent(purchaseEvent('purchased', FREE_PLAN, DATE), { deliveryId: 'z' });
+      expect(await getMarketplaceTier('77')).toBe('paid');
+      await applyPurchaseEvent(purchaseEvent('cancelled', PAID_PLAN, DATE), { deliveryId: 'a' });
+      expect(await getMarketplaceTier('77')).toBe('free');
+    });
+
+    test('the higher delivery id breaks a tie between the same action, in either order', async () => {
+      const toPaid = purchaseEvent('changed', PAID_PLAN, DATE);
+      const toFree = purchaseEvent('changed', FREE_PLAN, DATE);
+
+      await applyPurchaseEvent(toPaid, { deliveryId: '00000000-b' });
+      expect((await applyPurchaseEvent(toFree, { deliveryId: '00000000-a' })).changed).toBe(false);
+      expect(await getMarketplaceTier('77')).toBe('paid');
+
+      mockStore.clear();
+      await applyPurchaseEvent(toFree, { deliveryId: '00000000-a' });
+      expect((await applyPurchaseEvent(toPaid, { deliveryId: '00000000-b' })).changed).toBe(true);
+      expect(await getMarketplaceTier('77')).toBe('paid');
+    });
+
+    test('a replay writes nothing but is reported as the current plan', async () => {
+      const redis = require('../../lib/redis');
+      const event = purchaseEvent('cancelled', PAID_PLAN, DATE);
+      await applyPurchaseEvent(purchaseEvent('purchased', PAID_PLAN, '2026-11-01T00:00:00+00:00'), { deliveryId: 'p' });
+      expect(await applyPurchaseEvent(event, { deliveryId: 'c' })).toMatchObject({ changed: true, current: true });
+      const before = { ...mockStore.get('marketplace:77') };
+
+      expect(await applyPurchaseEvent(event, { deliveryId: 'c' })).toMatchObject({ changed: false, current: true });
+      expect(mockStore.get('marketplace:77')).toEqual(before);
+      expect(redis.hset).not.toHaveBeenCalled();
+    });
+
+    test('a record from before ranks existed keeps a cancellation, or a plan, against an equal-date event', async () => {
+      const at = String(Date.parse(DATE));
+      // As #46's script wrote them: no eventRank or eventDelivery
+      mockStore.set('marketplace:77', { account: 'acme', planId: '', planName: '', onFreeTrial: 'false', effectiveAt: at });
+      const late = await applyPurchaseEvent(purchaseEvent('purchased', PAID_PLAN, DATE), { deliveryId: 'z' });
+      expect(late).toMatchObject({ changed: false, current: false });
+      expect(await getMarketplaceTier('77')).toBe('free');
+
+      mockStore.set('marketplace:77', { account: 'acme', planId: '9001', planName: 'Paid', onFreeTrial: 'false', effectiveAt: at });
+      expect((await applyPurchaseEvent(purchaseEvent('changed', FREE_PLAN, DATE), { deliveryId: 'z' })).changed).toBe(false);
+      expect(await getMarketplaceTier('77')).toBe('paid');
+
+      // A later event still applies
+      await applyPurchaseEvent(purchaseEvent('cancelled', PAID_PLAN, '2026-12-02T00:00:00+00:00'));
+      expect(await getMarketplaceTier('77')).toBe('free');
+    });
+
+    test('a pending change dated the same as the changed that carried it out is ignored', async () => {
+      await applyPurchaseEvent(purchaseEvent('purchased', PAID_PLAN, '2026-11-01T00:00:00+00:00'));
+      await applyPurchaseEvent(purchaseEvent('changed', FREE_PLAN, DATE), { deliveryId: 'a' });
+      // A late or redelivered announcement of that change
+      await applyPurchaseEvent(purchaseEvent('pending_change', FREE_PLAN, DATE), { deliveryId: 'z' });
+      expect(mockStore.get('marketplace:77')).toMatchObject({ planId: '9000', pendingPlanId: '' });
+    });
+
+    test('a pending change dated the same as the purchase is recorded', async () => {
+      await applyPurchaseEvent(purchaseEvent('purchased', PAID_PLAN, DATE), { deliveryId: 'z' });
+      await applyPurchaseEvent(purchaseEvent('pending_change', FREE_PLAN, DATE), { deliveryId: 'a' });
+      expect(mockStore.get('marketplace:77')).toMatchObject({ planId: '9001', pendingPlanId: '9000' });
+    });
+  });
+
+  describe('reconciliation with GitHub', () => {
+    const redis = require('../../lib/redis');
+    // GET /marketplace_listing/accounts/77: the purchase, or null for a 404
+    const listing = (plan, updatedAt = '2026-11-01T00:00:00Z', extra = {}) => ({
+      id: 77,
+      login: 'acme',
+      marketplace_purchase: { billing_cycle: 'monthly', on_free_trial: false, updated_at: updatedAt, plan, ...extra },
+    });
+    const markerTtl = () => {
+      const calls = redis.set.mock.calls.filter(([key]) => key === 'marketplace-checked:77');
+      return calls[calls.length - 1][2].ex;
+    };
+
+    test('a missing record is looked up: a purchase GitHub reports is recorded', async () => {
+      const lookup = jest.fn(async () => listing(PAID_PLAN, '2026-11-01T00:00:00Z', { on_free_trial: true }));
+      expect(await getMarketplaceTier('77', lookup)).toBe('paid');
+      expect(lookup).toHaveBeenCalledWith('77');
+      expect(mockStore.get('marketplace:77')).toMatchObject({
+        account: 'acme', planId: '9001', planName: 'Paid', onFreeTrial: 'true',
+        effectiveAt: String(Date.parse('2026-11-01T00:00:00Z')),
+      });
+      expect(markerTtl()).toBe(24 * 60 * 60);
+
+      // Checked: no more lookups for a day
+      expect(await getMarketplaceTier('77', lookup)).toBe('paid');
+      expect(lookup).toHaveBeenCalledTimes(1);
+    });
+
+    test('a 404 is free, records nothing and is re-checked after 10 minutes', async () => {
+      const lookup = jest.fn(async () => null);
+      expect(await getMarketplaceTier('77', lookup)).toBe('free');
+      expect(mockStore.has('marketplace:77')).toBe(false);
+      expect(markerTtl()).toBe(10 * 60);
+      expect(await getMarketplaceTier('77', lookup)).toBe('free');
+      expect(lookup).toHaveBeenCalledTimes(1);
+
+      // The marker expires; GitHub now reports a purchase whose webhook was missed
+      mockStore.delete('marketplace-checked:77');
+      lookup.mockResolvedValueOnce(listing(PAID_PLAN));
+      expect(await getMarketplaceTier('77', lookup)).toBe('paid');
+    });
+
+    test('a failed lookup serves the recorded tier, is held for a minute only, and is retried', async () => {
+      const error = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const lookup = jest.fn(async () => { throw new Error('GitHub is down'); });
+      expect(await getMarketplaceTier('77', lookup)).toBe('free');
+      expect(error).toHaveBeenCalled();
+      expect(mockStore.get('marketplace-checked:77')).toBe('checking');
+      expect(markerTtl()).toBe(60);
+
+      mockStore.delete('marketplace-checked:77'); // a minute later
+      lookup.mockResolvedValueOnce(listing(PAID_PLAN));
+      expect(await getMarketplaceTier('77', lookup)).toBe('paid');
+      error.mockRestore();
+    });
+
+    test('a failed write after a successful lookup is held for a minute only', async () => {
+      const error = jest.spyOn(console, 'error').mockImplementation(() => {});
+      redis.eval.mockRejectedValueOnce(new Error('Redis timeout'));
+      expect(await getMarketplaceTier('77', async () => listing(PAID_PLAN))).toBe('free');
+      expect(mockStore.get('marketplace-checked:77')).toBe('checking');
+      expect(markerTtl()).toBe(60);
+
+      // A missed cancellation whose write fails
+      await applyPurchaseEvent(purchaseEvent('purchased', PAID_PLAN, new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString()));
+      mockStore.delete('marketplace-checked:77');
+      redis.set.mockClear();
+      redis.eval.mockRejectedValueOnce(new Error('Redis timeout'));
+      expect(await getMarketplaceTier('77', async () => null)).toBe('paid');
+      expect(mockStore.get('marketplace-checked:77')).toBe('checking');
+      expect(markerTtl()).toBe(60);
+
+      mockStore.delete('marketplace-checked:77'); // a minute later
+      expect(await getMarketplaceTier('77', async () => null)).toBe('free');
+      error.mockRestore();
+    });
+
+    test('concurrent reads make one lookup', async () => {
+      let release;
+      const held = new Promise(resolve => { release = resolve; });
+      const lookup = jest.fn(async () => { await held; return listing(PAID_PLAN); });
+      const first = getMarketplaceTier('77', lookup);
+      const second = getMarketplaceTier('77', lookup);
+      expect(await second).toBe('free');
+      release();
+      expect(await first).toBe('paid');
+      expect(lookup).toHaveBeenCalledTimes(1);
+    });
+
+    test('a webhook newer than the reconciled plan wins', async () => {
+      await getMarketplaceTier('77', async () => listing(PAID_PLAN, '2026-11-01T00:00:00Z'));
+      const result = await applyPurchaseEvent(purchaseEvent('cancelled', PAID_PLAN, '2026-12-01T00:00:00+00:00'));
+      expect(result.changed).toBe(true);
+      expect(await getMarketplaceTier('77')).toBe('free');
+    });
+
+    test('a webhook dated the same as the reconciled plan wins', async () => {
+      await getMarketplaceTier('77', async () => listing(PAID_PLAN, '2026-11-01T00:00:00Z'));
+      const result = await applyPurchaseEvent(purchaseEvent('purchased', FREE_PLAN, '2026-11-01T00:00:00Z'));
+      expect(result.changed).toBe(true);
+      expect(await getMarketplaceTier('77')).toBe('free');
+    });
+
+    test('what GitHub reports cannot override a newer webhook', async () => {
+      await applyPurchaseEvent(purchaseEvent('cancelled', PAID_PLAN, '2026-12-01T00:00:00+00:00'));
+      // The API still shows the purchase it replaced
+      expect(await getMarketplaceTier('77', async () => listing(PAID_PLAN, '2026-11-01T00:00:00Z'))).toBe('free');
+      expect(mockStore.get('marketplace:77').planId).toBe('');
+    });
+
+    test('a newer plan GitHub reports replaces a missed change', async () => {
+      await applyPurchaseEvent(purchaseEvent('purchased', FREE_PLAN, '2026-11-01T00:00:00+00:00'));
+      expect(await getMarketplaceTier('77', async () => listing(PAID_PLAN, '2026-11-10T00:00:00Z'))).toBe('paid');
+      expect(markerTtl()).toBe(24 * 60 * 60);
+    });
+
+    test('a recorded plan GitHub no longer reports is a missed cancellation', async () => {
+      await applyPurchaseEvent(purchaseEvent('purchased', PAID_PLAN, new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString()));
+      expect(await getMarketplaceTier('77', async () => null)).toBe('free');
+      expect(mockStore.get('marketplace:77')).toMatchObject({ planId: '', planName: '' });
+      expect(markerTtl()).toBe(24 * 60 * 60);
+    });
+
+    test('a purchase from just before the lookup is kept if GitHub does not show it yet', async () => {
+      await applyPurchaseEvent(purchaseEvent('purchased', PAID_PLAN, new Date(Date.now() - 5 * 60 * 1000).toISOString()));
+      expect(await getMarketplaceTier('77', async () => null)).toBe('paid');
+    });
+
+    test('no lookup without mapped plans', async () => {
+      delete process.env.GITHUB_MARKETPLACE_PLANS;
+      const lookup = jest.fn();
+      expect(await getMarketplaceTier('77', lookup)).toBe('free');
+      expect(lookup).not.toHaveBeenCalled();
     });
   });
 

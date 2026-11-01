@@ -8,6 +8,7 @@ jest.mock('../../lib/redis', () => ({
   del: jest.fn(async (key) => (mockStore.delete(key) ? 1 : 0)),
   hgetall: jest.fn(async (key) => (mockStore.has(key) ? { ...mockStore.get(key) } : null)),
   hset: jest.fn(async (key, fields) => { mockStore.set(key, { ...(mockStore.get(key) || {}), ...fields }); return 1; }),
+  eval: jest.fn(async (script, keys, args) => require('../redis-lua').evalLua(mockStore, script, keys, args)),
 }));
 
 jest.mock('axios');
@@ -249,6 +250,9 @@ describe('lib/github-app', () => {
       beforeEach(() => {
         process.env.GITHUB_MARKETPLACE_PLANS = '{"9001":"paid"}';
         mockStore.set('marketplace:77', { account: 'owner', planId: '9001', planName: 'Paid' });
+      mockStore.set('marketplace-checked:77', 'checked');
+        // Reconciled with GitHub recently, so no Marketplace lookup
+        mockStore.set('marketplace-checked:77', 'checked');
       });
 
       test("uses the account's plan", async () => {
@@ -277,6 +281,40 @@ describe('lib/github-app', () => {
     });
   });
 
+  describe('Marketplace reconciliation', () => {
+    beforeEach(() => {
+      process.env.GITHUB_MARKETPLACE_PLANS = '{"9001":"paid"}';
+      mockStore.set('installation:42', { accountId: '77', tier: 'free' });
+    });
+
+    test("reads the account's purchase from GitHub with the App JWT when nothing is recorded", async () => {
+      axios.get.mockResolvedValueOnce({ data: { id: 77, login: 'owner', marketplace_purchase: { plan: { id: 9001, name: 'Paid' }, updated_at: '2026-11-01T00:00:00Z' } } });
+      expect(await getInstallationTier('42')).toBe('paid');
+      const [url, { headers }] = axios.get.mock.calls[0];
+      expect(url).toBe('https://api.github.com/marketplace_listing/accounts/77');
+      expect(headers.Authorization).toMatch(/^Bearer [\w-]+\.[\w-]+\.[\w-]+$/);
+    });
+
+    test('a 404 is no purchase', async () => {
+      axios.get.mockRejectedValueOnce(notFound());
+      expect(await getInstallationTier('42')).toBe('free');
+      expect(mockStore.get('marketplace-checked:77')).toBe('none');
+    });
+
+    test('reads the stubbed endpoint with GITHUB_MARKETPLACE_STUBBED', async () => {
+      process.env.GITHUB_MARKETPLACE_STUBBED = 'true';
+      axios.get.mockRejectedValueOnce(notFound());
+      await getInstallationTier('42');
+      expect(axios.get.mock.calls[0][0]).toBe('https://api.github.com/marketplace_listing/stubbed/accounts/77');
+    });
+
+    test('makes no lookup without the App', async () => {
+      delete process.env.GITHUB_APP_ID;
+      expect(await getInstallationTier('42')).toBe('free');
+      expect(axios.get).not.toHaveBeenCalled();
+    });
+  });
+
   describe('account links', () => {
     test('an installation lookup links the installation to its account', async () => {
       axios.get.mockResolvedValue({ data: { id: 42, account: { login: 'owner', id: 77 } } });
@@ -298,6 +336,7 @@ describe('lib/github-app', () => {
       const error = jest.spyOn(console, 'error').mockImplementation(() => {});
       process.env.GITHUB_MARKETPLACE_PLANS = '{"9001":"paid"}';
       mockStore.set('marketplace:77', { account: 'owner', planId: '9001', planName: 'Paid' });
+      mockStore.set('marketplace-checked:77', 'checked');
 
       // The installation is recorded, but the link's last write fails, as a
       // Redis blip would
@@ -325,6 +364,7 @@ describe('lib/github-app', () => {
       const error = jest.spyOn(console, 'error').mockImplementation(() => {});
       process.env.GITHUB_MARKETPLACE_PLANS = '{"9001":"paid"}';
       mockStore.set('marketplace:77', { account: 'owner', planId: '9001', planName: 'Paid' });
+      mockStore.set('marketplace-checked:77', 'checked');
       mockStore.set('installation:42', { tier: 'free', repos: '[]' });
 
       axios.get.mockRejectedValueOnce(new Error('GitHub outage'));
