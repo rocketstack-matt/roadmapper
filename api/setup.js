@@ -182,7 +182,7 @@ const handler = async (req, res) => {
   const params = new URL(req.url, baseUrl).searchParams;
   if (params.get('setup_action') === 'request') {
     return message(res, 200, 'Installation requested',
-      'An owner of the organization needs to approve the Roadmapper GitHub App. Once they have, your roadmaps work straight away, with no file to commit.');
+      'An owner of the organization needs to approve the Roadmapper GitHub App. Once they have, your roadmaps work straight away.');
   }
 
   const installationId = params.get('installation_id') || '';
@@ -230,7 +230,7 @@ const handler = async (req, res) => {
 
   send(res, 200, 'GitHub App installed', `
     <h1>Roadmapper is installed</h1>
-    <p class="lead">The GitHub App is connected${account}. There's no file to commit: follow the steps below to label your first issue, preview the roadmap and add it to your README.</p>
+    <p class="lead">The GitHub App is connected${account}. Follow the steps below to label your first issue, preview the roadmap and add it to your README.</p>
     <div class="notice">${tierNotice}</div>
     ${privateNotice}
     ${repos}`);

@@ -11,7 +11,7 @@ const appInstallCard = (installUrl) => `
         <h3 class="app-card-title">Install the GitHub App</h3>
         <p class="step-description">Install Roadmapper on the repositories you want roadmaps for. That's all the setup there is.</p>
         <ul class="app-benefits">
-          <li><strong>No file to commit</strong> — installing the App shows you own the repo, so there's no API key or <code>.roadmapper</code> file.</li>
+          <li><strong>Ready in minutes</strong> — install the App, label an issue and embed your roadmap.</li>
           <li><strong>Live updates</strong> — on the paid plan, your roadmap refreshes within seconds of an issue changing. Free installs refresh hourly.</li>
           <li><strong>Read-only access</strong> — the App only reads the repositories you choose. Public repositories only, for now.</li>
         </ul>
