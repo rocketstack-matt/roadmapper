@@ -154,7 +154,8 @@ describe('api/webhook', () => {
     test('deleted forgets the installation and its repos', async () => {
       setTier('paid');
       mockStore.set('install:owner/repo', '42');
-      mockStore.set('repo:owner/repo', { tier: 'paid', source: 'app' });
+      mockStore.set('repo-key:owner/repo', 'key-hash');
+      mockStore.set('apikey:key-hash', { owner: 'owner', repo: 'repo', tier: 'paid', emailConfirmed: 'true' });
 
       await send('installation', { action: 'deleted', installation, repositories: [{ full_name: 'owner/repo' }] });
 
@@ -198,7 +199,8 @@ describe('api/webhook', () => {
     test('privatized forgets the repo so it is re-verified, and drops its cache', async () => {
       mockStore.set('install:owner/repo', '42');
       mockStore.set('visibility:owner/repo', 'public');
-      mockStore.set('repo:owner/repo', { tier: 'paid', source: 'app' });
+      mockStore.set('repo-key:owner/repo', 'key-hash');
+      mockStore.set('apikey:key-hash', { owner: 'owner', repo: 'repo', tier: 'paid', emailConfirmed: 'true' });
       mockStore.set('repo-ttl:owner/repo', '1');
       cacheIssues();
 
@@ -299,7 +301,8 @@ describe('api/webhook', () => {
 
     test('invalidates a repo with a paid key in a free installation', async () => {
       setTier('free');
-      mockStore.set('repo:owner/repo', { tier: 'paid', source: 'app' });
+      mockStore.set('repo-key:owner/repo', 'key-hash');
+      mockStore.set('apikey:key-hash', { owner: 'owner', repo: 'repo', tier: 'paid', emailConfirmed: 'true' });
       const res = await send('issues', issuePayload('edited', [roadmapLabel]));
       expect(res.body).toEqual({ result: 'invalidated' });
     });

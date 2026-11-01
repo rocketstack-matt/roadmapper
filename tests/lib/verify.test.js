@@ -269,7 +269,7 @@ describe('lib/verify', () => {
 
       expect(result).toEqual({ verified: true, tier: 'paid', source: 'app' });
       expect(axios.get).not.toHaveBeenCalledWith(expect.stringContaining('/contents/.roadmapper'), expect.anything());
-      expect(store.get('repo:owner/repo')).toEqual(expect.objectContaining({ tier: 'paid', source: 'app' }));
+      expect(store.has('repo:owner/repo')).toBe(false); // the tier is read live, never cached
     });
 
     test('refuses a private repo in an installation', async () => {
@@ -293,7 +293,9 @@ describe('lib/verify', () => {
       expect(result.verified).toBe(false);
     });
 
-    test('stops serving a repo made private, despite the cached verification', async () => {
+    test('stops serving a repo made private, despite a cached verification', async () => {
+      store.set('repo:owner/repo', { tier: 'free', source: 'key' });
+      store.set('repo-ttl:owner/repo', '1');
       expect((await verifyRepo('owner', 'repo')).verified).toBe(true);
       expect(store.get('visibility:owner/repo')).toBe('public');
 
@@ -361,14 +363,12 @@ describe('lib/verify', () => {
       store.set(`apikey:${keyHash}`, { owner: 'owner', repo: 'repo', tier: 'paid' });
 
       expect(await verifyRepo('Owner', 'Repo')).toEqual({ verified: true, tier: 'paid', source: 'app' });
-      expect(store.get('repo:owner/repo')).toEqual(expect.objectContaining({ tier: 'paid' }));
       expect(await verifyRepo('owner', 'repo')).toEqual({ verified: true, tier: 'paid', source: 'app' });
     });
 
     test('case-folds owner and repo in cache keys', async () => {
       await verifyRepo('Owner', 'Repo');
 
-      expect(store.has('repo:owner/repo')).toBe(true);
       expect(store.has('install:owner/repo')).toBe(true);
     });
 
