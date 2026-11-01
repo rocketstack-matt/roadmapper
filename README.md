@@ -197,26 +197,6 @@ Example:
 http://localhost:5002/rocketstack-matt/roadmapper/ffffff/24292f
 ```
 
-## Deployment
-
-This project can be deployed to any serverless platform that supports Node.js:
-
-1. Fork this repository
-2. Connect to your hosting platform (e.g., Vercel)
-3. Set environment variables:
-   - `GITHUB_TOKEN` — GitHub Personal Access Token (recommended, for higher API rate limits)
-   - `GITHUB_APP_ID` — GitHub App ID (optional; with the private key, repos that install the App are read with their own installation token and need no `.roadmapper` file)
-   - `GITHUB_APP_PRIVATE_KEY` — GitHub App private key in PEM format (literal `\n` escapes are accepted)
-   - `GITHUB_APP_WEBHOOK_SECRET` — GitHub App webhook secret (optional; enables `POST /api/webhook`, which refreshes paid installed repos within seconds of a change)
-   - `GITHUB_APP_SLUG` — the App's slug, from `https://github.com/apps/<slug>` (optional; with the App variables, shows "Install the GitHub App" on the landing page)
-   - `UPSTASH_REDIS_REST_URL` — Upstash Redis REST URL (required for registration, rate limiting, caching)
-   - `UPSTASH_REDIS_REST_TOKEN` — Upstash Redis REST token
-   - `RESEND_API_KEY` — Resend API key (optional, enables email confirmation on registration)
-   - `FROM_EMAIL` — Sender email address (optional, defaults to `Roadmapper <noreply@roadmapper.rocketstack.co>`)
-4. Deploy
-
-Without the GitHub App variables, every repo is read with `GITHUB_TOKEN` and verified with its `.roadmapper` file. Without the Upstash Redis variables, the service runs unrestricted (no registration required, no rate limits, no caching). Without `RESEND_API_KEY`, keys work immediately after registration (no email confirmation required).
-
 ## How Labels Work
 
 Roadmapper looks for these exact label names on your GitHub issues:
@@ -283,71 +263,6 @@ Paid repos with the Roadmapper GitHub App installed don't wait for a timer: GitH
 Roadmapper also uses the GitHub API, which has its own rate limits:
 - **Unauthenticated requests**: 60 requests per hour per IP
 - **Authenticated requests**: 5,000 requests per hour
-
-### Adding GitHub Authentication (Recommended for Production)
-
-To increase the rate limit to 5,000 requests/hour, add a GitHub Personal Access Token:
-
-1. **Create a GitHub Personal Access Token:**
-   - Go to https://github.com/settings/tokens
-   - Click "Generate new token (classic)"
-   - Give it a name like "Roadmapper"
-   - Select scope: **`public_repo`** (read access to public repositories)
-   - Click "Generate token" and copy the token
-
-2. **Add the token to your environment:**
-
-   **For local development:**
-   ```bash
-   # Create a .env file in the project root
-   echo "GITHUB_TOKEN=your_token_here" > .env
-   ```
-
-   **For production (Vercel):**
-   - Go to your Vercel project settings
-   - Navigate to "Environment Variables"
-   - Add: `GITHUB_TOKEN` = `your_token_here`
-
-3. **Restart the server** - The token will be automatically used for all GitHub API requests.
-
-**Security Note:** Never commit your `.env` file or expose your token in public repositories.
-
-### GitHub App Authentication (Optional)
-
-Instead of sharing one token across every roadmap, a deployment can read repos through a GitHub App: each repo where the App is installed is read with that installation's own token (and its own rate limit), and needs no `.roadmapper` file. Repos without the App keep using `GITHUB_TOKEN` and the `.roadmapper` file.
-
-Only public repos are served through the App. A private repo in an installation is refused, and a repo made private stops being served within a minute. Tokens are scoped to the one repo being read, with read-only Issues, Contents and Metadata, and are kept in memory only.
-
-1. **Create a GitHub App** (Settings → Developer settings → GitHub Apps → New GitHub App) with these repository permissions, all read-only:
-   - **Issues**: Read — to fetch roadmap issues
-   - **Metadata**: Read — required by GitHub for every App
-   - **Contents**: Read — to read `.roadmapper` files
-2. **Set the Setup URL** to `https://<your-domain>/setup` and tick **Redirect on update**. After installing (or changing which repos the App can read) GitHub sends the user there, to a page listing the installation's public repos and their embed URLs. The page needs no sign-in, so it never names private repos, only counts them.
-3. **Set up the webhook** (optional, but needed for real-time updates):
-   - **Webhook URL**: `https://<your-domain>/api/webhook`
-   - **Webhook secret**: a long random string (for example `openssl rand -hex 32`)
-   - **Subscribe to events**: Issues, Label and Repository (installation events are always sent)
-
-   Without webhooks, installations are still discovered on first request and roadmaps refresh on their tier's timer.
-4. **Generate a private key** for the App and note its **App ID** and its slug (the last part of its public page URL, `https://github.com/apps/<slug>`).
-5. **Set the environment variables** `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` (the PEM contents; on one line, newlines may be written as `\n`), `GITHUB_APP_SLUG` and, with webhooks, `GITHUB_APP_WEBHOOK_SECRET`.
-6. **Install the App** on the repositories whose roadmaps you want to serve.
-
-Webhook deliveries are rejected unless their `X-Hub-Signature-256` signature matches the secret. With webhooks, a repo made private stops being served immediately rather than within a minute.
-
-### Setting a tier
-
-Installations and API keys start on the free tier. Billing is direct for now, so a paid plan is switched on by hand:
-
-```bash
-node scripts/set-tier.js --installation <installation-id> paid   # every repo in an installation
-node scripts/set-tier.js <owner> <repo> paid                     # a repo's installation and/or API key
-node scripts/set-tier.js --installation <installation-id> free   # back to free
-```
-
-The installation id is the number in the installation's settings URL (`github.com/settings/installations/<id>`, or `github.com/organizations/<org>/settings/installations/<id>`) and in the setup page URL. The new tier applies on each repo's next request.
-
-The `<owner> <repo>` form finds the repo's installation from the mapping cached in Redis, so it needs only the Upstash credentials once the repo has been requested; with nothing cached it looks it up on GitHub, which needs `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY`. If it can't tell whether the repo is installed it says so and exits with an error instead of reporting success: use `--installation <id>` then.
 
 ## License
 
