@@ -138,6 +138,17 @@ describe('scripts/set-tier.js', () => {
       expect(mockStore.get('installation:42').tier).toBe('paid');
     });
 
+    it('says when a Marketplace plan keeps the installation paid', async () => {
+      process.env.GITHUB_MARKETPLACE_PLANS = '{"9001":"paid"}';
+      mockStore.set('installation:42', { accountId: '77', tier: 'paid', repos: '[]' });
+      mockStore.set('marketplace:77', { account: 'acme', planId: '9001', planName: 'Paid' });
+
+      expect(await main(['--installation', '42', 'free'])).toBe(0);
+      expect(mockStore.get('installation:42').tier).toBe('free');
+      expect(log).toHaveBeenCalledWith('Installation 42 stays on "paid": its account has a GitHub Marketplace plan.');
+      delete process.env.GITHUB_MARKETPLACE_PLANS;
+    });
+
     it('rejects a non-numeric id', async () => {
       expect(await main(['--installation', 'abc', 'paid'])).toBe(1);
     });

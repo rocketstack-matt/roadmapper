@@ -252,7 +252,7 @@ Roadmapper uses per-repository rate limiting and response caching:
 | Paid, with an API key | Every 30 seconds | ~Unlimited |
 | Paid, with the GitHub App installed | Within seconds of an issue changing | ~Unlimited |
 
-Every install and registration starts on the free tier. Paid plans are arranged directly with us for now (no GitHub Marketplace listing yet) — [get in touch](https://github.com/rocketstack-matt/roadmapper/issues). A paid GitHub App installation covers every repo in it.
+Every install and registration starts on the free tier. For the GitHub App, the paid plan is bought on Roadmapper's GitHub Marketplace listing, for the user or organization the App is installed on, and covers every repo of that installation. GitHub bills you, and free trials and cancellations follow GitHub's billing cycle: a cancelled or downgraded plan stays paid until the end of the period you've paid for. For API key repos, [get in touch](https://github.com/rocketstack-matt/roadmapper/issues).
 
 The cache TTL controls how often your roadmap data refreshes from GitHub. All viewers within the cache window see the same cached response. The rate limit is a secondary protection against abuse.
 

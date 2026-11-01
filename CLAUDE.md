@@ -120,8 +120,10 @@ Only **public** repos are read through the App: paid private access isn't built 
 - `getInstallationToken(id, owner, repo)`: mints a token via `POST /app/installations/{id}/access_tokens` scoped to that one repo and to read-only `issues`, `contents` and `metadata` (`TOKEN_PERMISSIONS`). Tokens are held **in process memory only** (never in Redis, logs or responses), per installation and repo, until 5 minutes before their 1-hour expiry — so without Redis a token isn't minted per request either.
 - `isRepoPrivate(owner, repo, headers)`: `GET /repos/{owner}/{repo}` with the installation token, cached in `visibility:{owner}/{repo}` for 60s (`VISIBILITY_TTL`), so a repo made private stops being served within a minute. Anything but an explicit `private: false` counts as private.
 - `getGitHubHeaders(owner, repo)`: **the one place GitHub auth headers come from** — the installation token if the App is installed, else `GITHUB_TOKEN`, else none. Used by `fetchIssues` (`roadmap.js`, called before the issue cache is read so cached issues are never served for a private repo), `fetchRoadmapperFile` (`lib/verify.js`) and `api/register.js`. For an installed repo it **never falls back to `GITHUB_TOKEN`** (the repo may have no `.roadmapper` opt-in): it throws `PrivateRepoError` for a private repo, and `AppAuthError` when the token request or visibility check fails — which also deletes the `install:` mapping so the next lookup notices an uninstall.
-- `getInstallationTier(id)`: **the one function that decides an installation's tier** — every tier check for an installed repo (`verifyRepo()`, the webhook's paid check) goes through it. Installs start on `free`; for now it returns the `tier` recorded on `installation:{id}` (anything but a known tier counts as `free`). Billing is direct (Stripe/invoice) and set by hand; a billing integration (Stripe, GitHub Marketplace) would plug in here.
-- `setInstallationTier(id, tier)`: records the tier on `installation:{id}` (creating the record if the install hasn't been seen yet; `recordInstallation()` never overwrites a tier) and clears `repo:`/`repo-ttl:` for every repo it lists, so the tier applies on their next request. Used by `scripts/set-tier.js`.
+- `getInstallationTier(id)`: **the one function that decides an installation's tier** — every tier check for an installed repo (`verifyRepo()`, the webhook's paid check) goes through it. Installs start on `free`. It returns the **higher** of the manual `tier` recorded on `installation:{id}` (anything but a known tier counts as `free`) and the GitHub Marketplace tier of the installation's account (`getMarketplaceTier(accountId)`, see "GitHub Marketplace Billing"). So a hand-set `paid` (a direct deal, a comp) holds whatever the Marketplace says, and a manual `free` never cancels a Marketplace purchase. An installation with no `accountId` (its link failed, or it predates account links) is linked on the spot by `resolveInstallationAccount(id)` (`GET /app/installations/{id}`, App JWT; a failure only logs and the next read retries), so a lost link heals itself.
+- `setInstallationTier(id, tier)`: records the manual tier on `installation:{id}` (creating the record if the install hasn't been seen yet; `recordInstallation()` never overwrites a tier) and clears `repo:`/`repo-ttl:` for every repo it lists, so the tier applies on their next request (`clearInstallationVerifications(id)`, also used after a Marketplace purchase). Used by `scripts/set-tier.js`.
+- `linkInstallationAccount(id, accountId)`: writes `accountId` on `installation:{id}` and adds the id as a field of `account-installations:{accountId}` (a field per id, so concurrent webhooks can't drop one). `accountId` is written last, so it marks a complete link: a half-written link has none and is redone by `getInstallationTier()`. Called by `recordInstallation()` and `addInstallationRepos()` whenever the installation's account id is known, so an install seen after its account's purchase picks the plan up.
+- `getAccountInstallations(account)`: `{ installations, lookupFailed }` — the ids in `account-installations:{account.id}`, after (when the App is configured) looking up the account's installation via `GET /orgs/{login}/installation` or `/users/{login}/installation` and linking it, which repairs a missing link. A 404 is fine (purchase before install); any other failure logs and sets `lookupFailed`.
 - `getAppInstallUrl()`: `https://github.com/apps/{GITHUB_APP_SLUG}/installations/new`, or `null` unless the App is configured and `GITHUB_APP_SLUG` is set.
 - `getInstallationRepos(id)`: for the setup page — the installation's account and repos (`GET /app/installations/{id}`, then `GET /installation/repositories`, paginated) as `{ account, repositories: [{ owner, repo, private }] }`, or `null` for an unknown installation. Uses a one-off `metadata: read` token that isn't kept. Anything but `private: false` counts as private.
 
@@ -134,8 +136,8 @@ Only **public** repos are read through the App: paid private access isn't built 
 The GitHub App is the primary way to onboard; the API key flow stays for users who can't get an App installed.
 
 - **Landing page (`api/index.js`):** when `getAppInstallUrl()` returns a URL, the Get Started section leads with an "Install the GitHub App" card (ready in minutes: install, label an issue and embed; live updates on paid; read-only/public repos only) linking to it, and the whole key flow (register form, steps 2–3) is moved inside a collapsed `<details id="key-fallback">` "Can't install the App? Use an API key". `openKeyFallback()` opens it when the page is loaded back from email confirmation (`?confirmed=true` / `?confirm_error=`). Without the App configured (or without `GITHUB_APP_SLUG`) the page is exactly the key flow, as before.
-- **Setup page (`api/setup.js`, `GET /setup`):** the App's Setup URL (set it to `https://<domain>/setup` with "Redirect on update"). GitHub sends `?installation_id=…&setup_action=install|update`; the page lists the installation's **public** repos, with one shared label and freshness guide followed by numbered repository links and embed snippets: create the three labels (`LABEL_GUIDE`: exact names with copy buttons and the README's suggested colours, linking to the repo's labels page), label an open issue (new-issue link with `Roadmap: Now` prefilled, plus the issues list), preview (viewer link, with freshness guidance by tier — a free repo's empty preview can stay cached for up to an hour), then embed (Markdown/iframe snippets and SVG/view/embed/html links, default colours). It also shows the installation's tier, chosen by tier alone: paid says "Paid plan" (live updates with webhooks configured, otherwise the paid 30s cache TTL) and never offers an upgrade; free says it refreshes hourly and links to get in touch to upgrade. It needs no sign-in, so private repos are only counted, never named. `setup_action=request` (an org member asked an owner to approve) needs no id. Missing/non-numeric id → 400, unknown installation → 404, GitHub error → 502, App not configured → 404. It is read-only (doesn't map repos — the lazy lookup does that on first request) and wrapped in `withMiddleware(…, { ipRateLimitOnly: true })`; `isSvgEndpoint()` treats `/setup` as HTML.
-- **Tiers:** every installation starts on `free` (hourly soft TTL, like a free key). `paid` makes an installed repo webhook-driven (see "Webhook-driven repos"). Set it with `scripts/set-tier.js`; see `getInstallationTier()` for the billing seam.
+- **Setup page (`api/setup.js`, `GET /setup`):** the App's Setup URL (set it to `https://<domain>/setup` with "Redirect on update"). GitHub sends `?installation_id=…&setup_action=install|update`; the page lists the installation's **public** repos, with one shared label and freshness guide followed by numbered repository links and embed snippets: create the three labels (`LABEL_GUIDE`: exact names with copy buttons and the README's suggested colours, linking to the repo's labels page), label an open issue (new-issue link with `Roadmap: Now` prefilled, plus the issues list), preview (viewer link, with freshness guidance by tier — a free repo's empty preview can stay cached for up to an hour), then embed (Markdown/iframe snippets and SVG/view/embed/html links, default colours). It also shows the installation's tier, chosen by tier alone: paid says "Paid plan" (live updates with webhooks configured, otherwise the paid 30s cache TTL) and never offers an upgrade; free says it refreshes hourly and links to the Marketplace listing to upgrade (`getMarketplaceUrl()`), or to get in touch when Marketplace plans aren't configured. It needs no sign-in, so private repos are only counted, never named. `setup_action=request` (an org member asked an owner to approve) needs no id. Missing/non-numeric id → 400, unknown installation → 404, GitHub error → 502, App not configured → 404. It is read-only (doesn't map repos — the lazy lookup does that on first request) and wrapped in `withMiddleware(…, { ipRateLimitOnly: true })`; `isSvgEndpoint()` treats `/setup` as HTML.
+- **Tiers:** every installation starts on `free` (hourly soft TTL, like a free key). `paid` makes an installed repo webhook-driven (see "Webhook-driven repos"). It comes from a GitHub Marketplace plan (see "GitHub Marketplace Billing") or by hand with `scripts/set-tier.js`; `getInstallationTier()` takes the higher.
 
 ### GitHub App Webhooks (`api/webhook.js`)
 
@@ -147,11 +149,23 @@ The GitHub App is the primary way to onboard; the API key flow stays for users w
 - **`repository`:** `privatized`, `publicized`, `renamed`, `transferred`, `deleted` → `forgetRepo()` (deletes `install:`, `visibility:`, `repo:` and `repo-ttl:`) plus cache invalidation, for the current name and, on rename/transfer, the old one. The next request re-verifies from scratch.
 - **`issues`** (`opened`, `edited`, `closed`, `reopened`, `labeled`, `unlabeled`, `deleted`, `transferred`) and **`label`** (`edited`, `deleted`): `invalidateIssues()` for the repo (and a transferred issue's new repo), only when the repo is paid — its installation's tier is `paid`, or its cached verification's is (an install keeps a paid key's tier) — so free repos keep their soft TTL. Events that can't affect a roadmap are ignored: an issue counts only if it has a `ROADMAP_LABELS` label or the event's `label` is one (so removing `Roadmap: Now` counts); a label counts only if its name, or its old name, starts with `Roadmap` (columns and `Roadmap Group:` labels).
 - **Private repos:** `addInstallationRepos()` never maps a repo whose payload has `private: true` (it still clears any cached mapping and verification for it), so a webhook can't make a private repo's roadmap public. Private repos are also refused on every request by the visibility check in `verifyRepo()`; the `repository` handler just makes a visibility change take effect immediately rather than within `VISIBILITY_TTL`.
+- **`marketplace_purchase`** (`purchased`, `changed`, `cancelled`, `pending_change`, `pending_change_cancelled`): see "GitHub Marketplace Billing".
 - Responds `{ result: 'updated' | 'invalidated' | 'ignored' }`; a Redis failure is a 500 so the delivery shows as failed and can be redelivered from the App settings. Non-production logs each event as `[webhook] <event>.<action> — <result>`.
 
 **Webhook-driven repos:** the middleware sets `req.webhookDriven` when the repo was verified via the App (`source: 'app'`), its tier is `paid` and `isWebhookConfigured()` (App + webhook secret set). Those repos get `WEBHOOK_CACHE_TTL` (900s, a safety net for missed webhooks) instead of the paid 30s soft TTL, and `api/roadmap.js` sends `Cache-Control: no-cache, no-store, max-age=0, must-revalidate` so GitHub's camo proxy and browsers revalidate. Other repos get no `Cache-Control` header, as before.
 
 **Invalidation race:** `invalidateIssues()` writes `cache:invalidated:{owner}/{repo}` (the time, 24h TTL) and deletes the cache entry. `fetchIssues` records when its GitHub fetch *started* and passes it to `cacheIssues()`, which stores `cachedAt: 0` (already stale) if the marker is newer — so a fetch that began before the change can't be cached as fresh for 15 minutes.
+
+### GitHub Marketplace Billing (`lib/marketplace.js`)
+
+Paid plans for App installs are sold on the App's GitHub Marketplace listing. GitHub bills the **account** (user or organization) and sends `marketplace_purchase` webhooks to the App's webhook URL, verified by the same signature check; the payload has no installation, only `marketplace_purchase.account` (`id`, `login`, `type`).
+
+- **Plan → tier:** `GITHUB_MARKETPLACE_PLANS` is a JSON object keyed by plan id (preferred: ids are stable, names can be edited) or exact plan name, e.g. `{"12345":"paid"}`. `planTier(id, name)` looks up the id, then the name; an unknown plan, an unknown tier value, an unset or invalid variable all mean `free`. The tier is computed when read (`getMarketplaceTier(accountId)`) from the stored plan, so a mapping change applies without new events (after cached verifications expire).
+- **`applyPurchaseEvent(payload)`** writes `marketplace:{account id}`. `purchased`/`changed` record the plan (`planId`, `planName`, `onFreeTrial`); `cancelled` clears it (free). A free trial of a mapped plan is paid; cancelling during a trial arrives as `cancelled`. `pending_change` (a downgrade or cancellation at the end of the billing cycle) only records `pendingPlanId`/`pendingPlanName`/`pendingAt` — the tier changes when GitHub sends `changed`/`cancelled` at the end of the cycle, which clears the pending fields; `pending_change_cancelled` clears them.
+- **Ordering and retries:** events carry `effective_date`; one older than the recorded `effectiveAt` (an undated one counts as oldest) is ignored, so a late or redelivered `purchased` can't re-grant a cancelled plan, and re-applying an event is a no-op. Ties are applied (latest delivery wins); GitHub only redelivers when someone does it by hand. The check and the write are one Lua script (`APPLY_PURCHASE_SCRIPT`, run with `redis.eval`), never a read then a write, so two deliveries handled at once can't leave the older one written last.
+- **Applying it:** when the current plan changed, the webhook runs `clearInstallationVerifications()` for every installation of the account (`getAccountInstallations()`), so their repos re-verify with the new tier on their next request. If the account's installation lookup failed, the delivery is a 500 after clearing the linked ones, so it can be redelivered. A purchase that arrives before the install is kept on the account and applies once the install is seen (`linkInstallationAccount()`).
+- `getMarketplaceUrl()`: `https://github.com/marketplace/{GITHUB_APP_SLUG}` once `GITHUB_MARKETPLACE_PLANS` maps at least one plan, else `null`. The setup page's upgrade link.
+- API-key repos aren't covered by the Marketplace (it bills App installs); their tier is still set with `scripts/set-tier.js`.
 
 ### Lib Modules (`lib/`)
 
@@ -159,7 +173,8 @@ The GitHub App is the primary way to onboard; the API key flow stays for users w
 - `lib/tiers.js`: Tier configuration (free: 3600s cache/1000 req/hr, paid: 30s cache/10000 req/hr)
 - `lib/keys.js`: Key generation, hashing, storage, lookup, email confirmation (`confirmRegistration`)
 - `lib/verify.js`: Repo verification — GitHub App installation or `.roadmapper` file, validates key, caches result
-- `lib/github-app.js`: GitHub App auth — App JWT, installation lookup, in-memory installation tokens, visibility check, `getGitHubHeaders()`; installation tier (`getInstallationTier`, the billing seam, and `setInstallationTier`); install flow (`getAppInstallUrl`, `getInstallationRepos`); install mapping maintenance for webhooks (`addInstallationRepos`, `removeInstallationRepos`, `deleteInstallation`, `forgetRepo`); `isWebhookConfigured()`
+- `lib/marketplace.js`: GitHub Marketplace billing — plan → tier mapping (`GITHUB_MARKETPLACE_PLANS`), `applyPurchaseEvent()`, `getMarketplaceTier()`, `higherTier()`, `getMarketplaceUrl()`
+- `lib/github-app.js`: GitHub App auth — App JWT, installation lookup, in-memory installation tokens, visibility check, `getGitHubHeaders()`; installation tier (`getInstallationTier`, higher of manual and Marketplace, and `setInstallationTier`); account links (`linkInstallationAccount`, `getAccountInstallations`, `clearInstallationVerifications`); install flow (`getAppInstallUrl`, `getInstallationRepos`); install mapping maintenance for webhooks (`addInstallationRepos`, `removeInstallationRepos`, `deleteInstallation`, `forgetRepo`); `isWebhookConfigured()`
 - `lib/repo-slug.js`: `repoSlug(owner, repo)` — lowercased `owner/repo` for Redis keys
 - `lib/cache.js`: GitHub issues response caching with ETag support, application-level freshness and webhook invalidation (`invalidateIssues`)
 - `lib/ratelimit.js`: Per-repo and per-IP rate limiting using `@upstash/ratelimit`
@@ -227,7 +242,9 @@ confirm:{token}                → String (key hash, 24hr TTL, one-time use)
 cache:issues:{owner}/{repo}    → String (JSON { issues, etag, cachedAt }, no TTL)
 cache:invalidated:{owner}/{repo} → String (ms timestamp of the last webhook invalidation, 24hr TTL)
 install:{owner}/{repo}         → String (GitHub App installation id, 24hr TTL; "none" = not installed, 10min TTL)
-installation:{id}              → Hash { account, repos (JSON array of owner/repo seen), tier ('free' | 'paid', default free) }
+installation:{id}              → Hash { account, accountId (GitHub account id), repos (JSON array of owner/repo seen), tier (manual: 'free' | 'paid', default free) }
+account-installations:{accountId} → Hash { <installation id>: '1' } (one field per installation of that account)
+marketplace:{accountId}        → Hash { account, planId, planName, onFreeTrial, effectiveAt (ms), pendingPlanId, pendingPlanName, pendingAt } (no TTL)
 visibility:{owner}/{repo}      → String ('public' | 'private', 60s TTL; installed repos only)
 ratelimit:*                    → Managed by @upstash/ratelimit SDK
 ```
@@ -257,6 +274,7 @@ The project uses **Jest** for testing. Tests live in the `tests/` directory.
 ### Test Files
 
 - `tests/helpers.js`: Shared mock data and test utilities (mock req/res, mock issues)
+- `tests/redis-lua.js`: `evalLua(store, script, keys, args)` — runs a Redis Lua script (`redis.eval`) against a test's in-memory `Map` with a real Lua interpreter (`fengari`, a dev dependency), supporting `HGET`/`HSET`; use it as the mock's `eval`
 - `tests/roadmap.test.js`: Core logic tests (`validateHexColor`, `normalizeHex`, `hexToRgba`, `generateRoadmapSVG`, `fetchIssues`)
 - `tests/api-roadmap.test.js`: SVG generator endpoint tests (URL parsing, redirects, error handling)
 - `tests/api-view.test.js`: Interactive viewer endpoint tests (HTML output, environment detection, presets)
@@ -272,10 +290,11 @@ The project uses **Jest** for testing. Tests live in the `tests/` directory.
 - `tests/lib/middleware.test.js`: Middleware passthrough, unregistered error, rate limit error, req augmentation
 - `tests/lib/tiers.test.js`: Tier configuration structure
 - `tests/lib/cache.test.js`: Issue cache format, ETag storage, `isCacheFresh` logic
-- `tests/lib/github-app.test.js`: App JWT signing, installation lookup/caching, token caching, header fallback, webhook install mapping, install URL, installation tier get/set, installation repo listing
+- `tests/lib/github-app.test.js`: App JWT signing, installation lookup/caching, token caching, header fallback, webhook install mapping, install URL, installation tier get/set (with Marketplace plans and the manual override), account links, installation repo listing
+- `tests/lib/marketplace.test.js`: plan → tier mapping (unknown plans free), each `marketplace_purchase` action, free trials, pending changes, event ordering and idempotency (including concurrent deliveries in reverse order), listing URL
 - `tests/api-setup.test.js`: GitHub App setup page (repo listing, first-roadmap guide, embed URLs, private repos counted not named, tier notice, error states)
 - `tests/api-legal.test.js`: Privacy policy and terms pages (`/privacy`, `/terms`, 404 otherwise) and the landing footer links
-- `tests/api-webhook.test.js`: Webhook signature verification (raw body), installation/repository events, issue/label cache invalidation, invalidation race
+- `tests/api-webhook.test.js`: Webhook signature verification (raw body), installation/repository events, issue/label cache invalidation, invalidation race, `marketplace_purchase` (each action, signatures, unknown plan, several installations, manual override)
 - `tests/scripts/set-tier.test.js`: `scripts/set-tier.js` — cached install mapping without App credentials, unknown-installation warning and exit code, GitHub lookup, `--installation`
 
 ### Writing Tests
@@ -467,6 +486,7 @@ Example: `http://localhost:5002/rocketstack-matt/roadmapper/ffffff/24292f`
 ### Dev Dependencies
 
 - `jest` (^30.2.0): Testing framework
+- `fengari`: Lua interpreter, so tests run the real Redis Lua scripts (`tests/redis-lua.js`)
 
 ## Important Files
 
@@ -488,6 +508,7 @@ Example: `http://localhost:5002/rocketstack-matt/roadmapper/ffffff/24292f`
 - `lib/keys.js`: API key generation, hashing, storage, lookup
 - `lib/verify.js`: Repo verification via GitHub App installation or `.roadmapper` file
 - `lib/github-app.js`: GitHub App JWT, installation tokens, per-repo auth headers
+- `lib/marketplace.js`: GitHub Marketplace plans and purchase events
 - `lib/cache.js`: GitHub issues response caching with ETag support
 - `lib/ratelimit.js`: Per-repo and per-IP rate limiting
 - `scripts/set-tier.js`: CLI utility to update a repo's or installation's tier in Redis
@@ -513,6 +534,7 @@ Example: `http://localhost:5002/rocketstack-matt/roadmapper/ffffff/24292f`
 | `GITHUB_APP_PRIVATE_KEY` | Optional | GitHub App private key (PEM; literal `\n` escapes allowed) |
 | `GITHUB_APP_SLUG` | Optional | GitHub App slug (`github.com/apps/<slug>`). With the App vars, shows the "Install the GitHub App" option on the landing page |
 | `GITHUB_APP_WEBHOOK_SECRET` | Optional | GitHub App webhook secret. Enables `POST /api/webhook`; paid installed repos then refresh on webhooks |
+| `GITHUB_MARKETPLACE_PLANS` | Optional | JSON map of Marketplace plan id (or exact name) to tier, e.g. `{"12345":"paid"}`. Unknown plans are free; unset means every purchase is free and the setup page links to get in touch instead of the listing |
 | `UPSTASH_REDIS_REST_URL` | Optional | Upstash Redis REST URL for auth, rate limiting, and caching |
 | `UPSTASH_REDIS_REST_TOKEN` | Optional | Upstash Redis REST token |
 | `RESEND_API_KEY` | Optional | Resend API key for email confirmation. Without it: keys work immediately |

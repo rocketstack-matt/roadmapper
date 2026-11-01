@@ -6,7 +6,7 @@ The next milestone is **turn a new GitHub App installation into a useful, embedd
 
 | Column | Issue | Notes |
 | --- | --- | --- |
-| Now | #11 Paid tier | Phase 1 done. Left: pricing, direct billing wired into `getInstallationTier()`, a website section; Marketplace later. |
+| Now | #11 Paid tier | Billing goes straight to GitHub Marketplace: `marketplace_purchase` webhooks set the tier through `getInstallationTier()`. Left: publisher verification, the paid plan on the listing, and the plan id in `GITHUB_MARKETPLACE_PLANS` (see [Marketplace listing](marketplace-listing.md#paid-plan-setup)). |
 | Next | #4 Private repositories | Signed, rotatable links; paid. See [Private repositories](#2-private-repositories-4). |
 | Next | #6 Rate-limit monitoring | Not started. Overlaps the operational signals in step 3. |
 | Next | #29 Harden `/setup` | The setup page mints a token on every visit. |
@@ -20,7 +20,7 @@ Closed: #10 GitHub App, #7 Webhooks.
 - The setup page walks each connected public repository through creating the three labels (copyable names and suggested colours, a link to the repo's labels page), labelling an open issue (a new-issue link with `Roadmap: Now` prefilled), previewing the roadmap with tier-specific freshness guidance, and copying the Markdown or iframe snippet (`api/setup.js`).
 - Installation tokens, visibility checks and lifecycle webhooks support repository access (`lib/github-app.js`, `api/webhook.js`).
 - Free installations refresh hourly. Paid installations support webhook invalidation, with a 15-minute safety refresh; paid without configured webhooks uses a 30-second timer (`lib/tiers.js`).
-- Paid tiers can be assigned manually with `scripts/set-tier.js`. There is no self-service checkout.
+- Paid tiers come from a GitHub Marketplace plan (`lib/marketplace.js`, `marketplace_purchase` webhooks) or are assigned manually with `scripts/set-tier.js`; an installation gets the higher of the two. Checkout, plan changes and cancellation are GitHub's.
 - Analytics includes page snippets and a server-side `roadmap_view` event (`lib/analytics.js`, `api/roadmap.js`). That event alone does not establish activation or retention.
 
 ## 1. Complete the install-to-first-roadmap journey
@@ -60,18 +60,17 @@ Recruit a handful of public projects and watch the setup journey. Define activat
 
 **Acceptance:** we can explain where pilot users stop, confirm which embeds work, inspect failed deliveries, and distinguish real adoption from our own demo traffic.
 
-## 4. Finish the paid offer (#11), then automate billing
+## 4. Finish the paid offer (#11) on GitHub Marketplace
 
-Paid now means faster updates and, with #4, private repositories. Use the manual tier command for early customers while settling price and billing unit, and wire direct billing into `getInstallationTier()` rather than adding a parallel entitlement system.
+The owner chose GitHub Marketplace over direct billing. GitHub handles checkout, the billing portal, upgrades, downgrades and cancellation, and it ties the purchase to the GitHub account the App is installed on, so we don't need our own payer authentication. `marketplace_purchase` webhooks are signature-verified and ordered by `effective_date`, and they feed `getInstallationTier()` rather than a parallel entitlement system. The manual tier command stays for direct deals and API-key repos.
 
-Self-service checkout needs the same installation-administrator authentication as private links: bind the payer to an installation they manage, use verified, idempotent billing webhooks, and handle upgrade/downgrade, cancellation and a billing portal.
+Still to do: publisher verification, the paid plan and its price on the listing, and mapping the plan id in `GITHUB_MARKETPLACE_PLANS`. Paid also covers private repositories once #4 is built.
 
-**Acceptance:** a verified installation administrator can buy, manage and cancel a plan; retries and out-of-order billing events cannot grant an incorrect tier; public setup links cannot change billing.
+**Acceptance:** an account owner can buy, change and cancel the plan on the Marketplace listing and every installation of the account follows it; retries and out-of-order events cannot grant an incorrect tier; public setup links cannot change billing.
 
 ## Defer until evidence justifies them
 
 | Work | Why defer | Trigger to reconsider |
 | --- | --- | --- |
-| GitHub Marketplace billing | Direct billing/manual tiers already provide a way to test the offer. | Marketplace distribution or procurement becomes a demonstrated requirement. |
 | Automatic label creation | Requires broader App permissions than today's read-only setup. | Pilot users repeatedly fail at label setup despite the guided instructions. |
 | More themes, custom columns (#9), multi-repo boards | None resolves the install-to-value journey. | Repeated requests from active users identify a concrete priority. |
