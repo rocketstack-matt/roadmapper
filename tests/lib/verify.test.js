@@ -93,9 +93,17 @@ describe('lib/verify', () => {
       redis.get.mockResolvedValueOnce('1');
 
       const result = await verifyRepo('owner', 'repo');
-      expect(result).toEqual({ verified: true, tier: 'free' });
+      expect(result).toEqual({ verified: true, tier: 'free', source: 'key' });
       // Should not have fetched from GitHub
       expect(axios.get).not.toHaveBeenCalled();
+    });
+
+    test('returns the cached verification source', async () => {
+      redis.hgetall.mockResolvedValueOnce({ tier: 'paid', source: 'key', verifiedAt: '2026-01-01T00:00:00Z' });
+      redis.get.mockResolvedValueOnce('1');
+
+      const result = await verifyRepo('owner', 'repo');
+      expect(result).toEqual({ verified: true, tier: 'paid', source: 'key' });
     });
 
     test('re-verifies when cache is stale', async () => {
@@ -110,7 +118,7 @@ describe('lib/verify', () => {
       redis.hgetall.mockResolvedValueOnce({ owner: 'owner', repo: 'repo', tier: 'free' });
 
       const result = await verifyRepo('owner', 'repo');
-      expect(result).toEqual({ verified: true, tier: 'free' });
+      expect(result).toEqual({ verified: true, tier: 'free', source: 'key' });
     });
 
     test('returns not verified when no .roadmapper file', async () => {
@@ -259,7 +267,7 @@ describe('lib/verify', () => {
     test('serves a public repo in an installation with its tier, without a .roadmapper file', async () => {
       const result = await verifyRepo('owner', 'repo');
 
-      expect(result).toEqual({ verified: true, tier: 'paid' });
+      expect(result).toEqual({ verified: true, tier: 'paid', source: 'app' });
       expect(axios.get).not.toHaveBeenCalledWith(expect.stringContaining('/contents/.roadmapper'), expect.anything());
       expect(store.get('repo:owner/repo')).toEqual(expect.objectContaining({ tier: 'paid', source: 'app' }));
     });
@@ -325,7 +333,7 @@ describe('lib/verify', () => {
       clearTokenCache();
       store.delete('visibility:owner/repo');
 
-      expect(await verifyRepo('owner', 'repo')).toEqual({ verified: true, tier: 'free' });
+      expect(await verifyRepo('owner', 'repo')).toEqual({ verified: true, tier: 'free', source: 'key' });
     });
 
     test('refuses an installed repo when the token request fails, without falling back to GITHUB_TOKEN', async () => {
@@ -344,7 +352,7 @@ describe('lib/verify', () => {
       store.set('repo-key:owner/repo', keyHash);
       store.set(`apikey:${keyHash}`, { owner: 'owner', repo: 'repo', tier: 'paid' });
 
-      expect(await verifyRepo('owner', 'repo')).toEqual({ verified: true, tier: 'paid' });
+      expect(await verifyRepo('owner', 'repo')).toEqual({ verified: true, tier: 'paid', source: 'app' });
     });
 
     test('case-folds owner and repo in cache keys', async () => {
@@ -361,7 +369,7 @@ describe('lib/verify', () => {
 
       const result = await verifyRepo('owner', 'repo');
 
-      expect(result).toEqual({ verified: true, tier: 'free' });
+      expect(result).toEqual({ verified: true, tier: 'free', source: 'key' });
       expect(axios.get).toHaveBeenCalledWith(
         'https://api.github.com/repos/owner/repo/contents/.roadmapper',
         { headers: { Authorization: 'Bearer shared-token' } }

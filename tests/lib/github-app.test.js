@@ -16,6 +16,10 @@ const axios = require('axios');
 const redis = require('../../lib/redis');
 const {
   isAppConfigured,
+  isWebhookConfigured,
+  addInstallationRepos,
+  removeInstallationRepos,
+  deleteInstallation,
   createAppJwt,
   getInstallationId,
   getInstallationToken,
@@ -331,6 +335,108 @@ describe('lib/github-app', () => {
       expect(axios.get).not.toHaveBeenCalled();
       expect(axios.post).not.toHaveBeenCalled();
       expect(redis.get).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('isWebhookConfigured', () => {
+    test('true when the App and webhook secret are set', () => {
+      process.env.GITHUB_APP_WEBHOOK_SECRET = 'secret';
+      expect(isWebhookConfigured()).toBe(true);
+    });
+
+    test('false without the webhook secret or the App', () => {
+      expect(isWebhookConfigured()).toBe(false);
+      process.env.GITHUB_APP_WEBHOOK_SECRET = 'secret';
+      delete process.env.GITHUB_APP_ID;
+      expect(isWebhookConfigured()).toBe(false);
+    });
+  });
+
+  describe('installation webhooks', () => {
+    const installation = { id: 42, account: { login: 'owner' } };
+    const repository = (name, isPrivate = false) => ({ full_name: `owner/${name}`, private: isPrivate });
+
+    test('addInstallationRepos maps public repos and records them on the installation', async () => {
+      mockStore.set('install:owner/a', 'none');
+      await addInstallationRepos(installation, [repository('a'), repository('b')]);
+
+      expect(mockStore.get('install:owner/a')).toBe('42');
+      expect(mockStore.get('install:owner/b')).toBe('42');
+      expect(redis.set).toHaveBeenCalledWith('install:owner/a', '42', { ex: 86400 });
+      expect(JSON.parse(mockStore.get('installation:42').repos)).toEqual(['owner/a', 'owner/b']);
+      expect(mockStore.get('installation:42').tier).toBe('free');
+    });
+
+    test('addInstallationRepos does not map private repos', async () => {
+      mockStore.set('install:owner/secret', '42');
+      mockStore.set('repo:owner/secret', { tier: 'paid', source: 'app' });
+      await addInstallationRepos(installation, [repository('secret', true)]);
+
+      expect(mockStore.has('install:owner/secret')).toBe(false);
+      expect(mockStore.has('repo:owner/secret')).toBe(false);
+      expect(mockStore.has('installation:42')).toBe(false);
+    });
+
+    test('addInstallationRepos clears cached verification so repos re-verify as installed', async () => {
+      mockStore.set('repo:owner/a', { tier: 'free', source: 'key' });
+      mockStore.set('repo-ttl:owner/a', '1');
+      await addInstallationRepos(installation, [repository('a')]);
+
+      expect(mockStore.has('repo:owner/a')).toBe(false);
+      expect(mockStore.has('repo-ttl:owner/a')).toBe(false);
+    });
+
+    test('addInstallationRepos keeps an existing paid tier', async () => {
+      mockStore.set('installation:42', { account: 'owner', repos: '[]', tier: 'paid' });
+      await addInstallationRepos(installation, [repository('a')]);
+      expect(mockStore.get('installation:42').tier).toBe('paid');
+    });
+
+    test('removeInstallationRepos unmaps repos and drops them from the record', async () => {
+      await addInstallationRepos(installation, [repository('a'), repository('b')]);
+      mockStore.set('repo:owner/a', { tier: 'free', source: 'app' });
+      await removeInstallationRepos('42', ['owner/a']);
+
+      expect(mockStore.has('install:owner/a')).toBe(false);
+      expect(mockStore.has('repo:owner/a')).toBe(false);
+      expect(mockStore.get('install:owner/b')).toBe('42');
+      expect(JSON.parse(mockStore.get('installation:42').repos)).toEqual(['owner/b']);
+    });
+
+    test('deleteInstallation forgets every repo, its tokens and the record', async () => {
+      mockInstalled();
+      await addInstallationRepos(installation, [repository('a')]);
+      await getInstallationToken('42', 'owner', 'a');
+      await deleteInstallation('42', ['Owner/Listed']);
+
+      expect(mockStore.has('install:owner/a')).toBe(false);
+      expect(redis.del).toHaveBeenCalledWith('install:owner/listed');
+      expect(mockStore.has('installation:42')).toBe(false);
+
+      // The in-memory token is gone, so the next request mints a new one
+      await getInstallationToken('42', 'owner', 'a');
+      expect(axios.post).toHaveBeenCalledTimes(2);
+    });
+
+    test('forgetting a repo clears its cached visibility and verification', async () => {
+      mockStore.set('install:owner/a', '42');
+      mockStore.set('visibility:owner/a', 'public');
+      mockStore.set('repo:owner/a', { tier: 'paid', source: 'app' });
+      mockStore.set('repo-ttl:owner/a', '1');
+      await removeInstallationRepos('42', ['Owner/A']);
+
+      ['install:', 'visibility:', 'repo:', 'repo-ttl:'].forEach((prefix) => {
+        expect(mockStore.has(`${prefix}owner/a`)).toBe(false);
+      });
+    });
+
+    test('deleteInstallation with keepRecord keeps the tier (suspension)', async () => {
+      mockStore.set('installation:42', { account: 'owner', repos: '["owner/a"]', tier: 'paid' });
+      mockStore.set('install:owner/a', '42');
+      await deleteInstallation('42', [], { keepRecord: true });
+
+      expect(mockStore.has('install:owner/a')).toBe(false);
+      expect(mockStore.get('installation:42')).toEqual({ account: 'owner', repos: '[]', tier: 'paid' });
     });
   });
 });

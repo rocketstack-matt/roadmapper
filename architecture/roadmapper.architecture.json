@@ -206,6 +206,33 @@
             }
         },
         {
+            "unique-id": "webhook-service",
+            "node-type": "service",
+            "name": "GitHub App Webhook Service",
+            "description": "Receives signed GitHub App webhooks, keeps installation mappings current and invalidates cached issues of paid installed repos",
+            "interfaces": [
+                {
+                    "unique-id": "webhook-endpoint",
+                    "host": "roadmapper.rocketstack.co",
+                    "port": 443
+                }
+            ],
+            "controls": {
+                "webhook-signature": {
+                    "description": "Rejects deliveries whose X-Hub-Signature-256 HMAC of the raw body does not match GITHUB_APP_WEBHOOK_SECRET (timing-safe compare)",
+                    "requirements": [
+                        {
+                            "requirement-url": "architecture/controls/input-validation.control.json",
+                            "config": {
+                                "validation": "hmac-sha256-signature",
+                                "header": "X-Hub-Signature-256"
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        {
             "unique-id": "middleware",
             "node-type": "service",
             "name": "Request Middleware",
@@ -483,6 +510,40 @@
             "protocol": "HTTPS"
         },
         {
+            "unique-id": "github-to-webhook",
+            "description": "GitHub delivers installation, repository, issues and label events to the webhook service",
+            "relationship-type": {
+                "connects": {
+                    "source": {
+                        "node": "github-api",
+                        "interface": "github-app-api"
+                    },
+                    "destination": {
+                        "node": "webhook-service",
+                        "interface": "webhook-endpoint"
+                    }
+                }
+            },
+            "protocol": "HTTPS"
+        },
+        {
+            "unique-id": "webhook-to-redis",
+            "description": "Webhook service updates installation mappings and invalidates cached issues",
+            "relationship-type": {
+                "connects": {
+                    "source": {
+                        "node": "webhook-service",
+                        "interface": "webhook-endpoint"
+                    },
+                    "destination": {
+                        "node": "redis-store",
+                        "interface": "redis-interface"
+                    }
+                }
+            },
+            "protocol": "HTTPS"
+        },
+        {
             "unique-id": "middleware-to-redis",
             "description": "Middleware performs cache lookups, rate limiting, and key verification",
             "relationship-type": {
@@ -542,6 +603,7 @@
                         "html-generator",
                         "registration-service",
                         "confirmation-service",
+                        "webhook-service",
                         "middleware",
                         "redis-store"
                     ]
@@ -562,6 +624,7 @@
                         "html-generator",
                         "registration-service",
                         "confirmation-service",
+                        "webhook-service",
                         "middleware"
                     ]
                 }
@@ -662,6 +725,23 @@
                     "relationship-unique-id": "user-views-embed",
                     "sequence-number": 3,
                     "description": "Embed service triggers roadmap generation"
+                }
+            ]
+        },
+        {
+            "unique-id": "webhook-refresh-flow",
+            "name": "Webhook Refresh Flow",
+            "description": "A change to a roadmap issue in a paid installed repo refreshes its roadmap within seconds",
+            "transitions": [
+                {
+                    "relationship-unique-id": "github-to-webhook",
+                    "sequence-number": 1,
+                    "description": "GitHub sends a signed issues or label event"
+                },
+                {
+                    "relationship-unique-id": "webhook-to-redis",
+                    "sequence-number": 2,
+                    "description": "Webhook service invalidates the repo's cached issues"
                 }
             ]
         }

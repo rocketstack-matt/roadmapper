@@ -114,6 +114,54 @@ describe('lib/middleware', () => {
       expect(req.cacheTtl).toBe(3600);
     });
 
+    describe('webhook-driven repos', () => {
+      const appEnv = {
+        GITHUB_APP_ID: '123',
+        GITHUB_APP_PRIVATE_KEY: 'key',
+        GITHUB_APP_WEBHOOK_SECRET: 'secret',
+      };
+
+      afterEach(() => {
+        Object.keys(appEnv).forEach((name) => delete process.env[name]);
+      });
+
+      const run = async (verification) => {
+        verifyRepo.mockResolvedValue(verification);
+        const req = createMockReq('/owner/repo/ffffff/24292f');
+        await withMiddleware(jest.fn())(req, createMockRes());
+        return req;
+      };
+
+      test('uses the long safety TTL for a paid repo with the App installed', async () => {
+        Object.assign(process.env, appEnv);
+        const req = await run({ verified: true, tier: 'paid', source: 'app' });
+        expect(req.webhookDriven).toBe(true);
+        expect(req.cacheTtl).toBe(900);
+      });
+
+      test('keeps the paid TTL for a paid repo verified by .roadmapper file', async () => {
+        Object.assign(process.env, appEnv);
+        const req = await run({ verified: true, tier: 'paid', source: 'key' });
+        expect(req.webhookDriven).toBe(false);
+        expect(req.cacheTtl).toBe(30);
+      });
+
+      test('keeps the free TTL for a free repo with the App installed', async () => {
+        Object.assign(process.env, appEnv);
+        const req = await run({ verified: true, tier: 'free', source: 'app' });
+        expect(req.webhookDriven).toBe(false);
+        expect(req.cacheTtl).toBe(3600);
+      });
+
+      test('keeps the paid TTL when no webhook secret is configured', async () => {
+        Object.assign(process.env, appEnv);
+        delete process.env.GITHUB_APP_WEBHOOK_SECRET;
+        const req = await run({ verified: true, tier: 'paid', source: 'app' });
+        expect(req.webhookDriven).toBe(false);
+        expect(req.cacheTtl).toBe(30);
+      });
+    });
+
     test('returns 403 for unregistered repo', async () => {
       verifyRepo.mockResolvedValue({ verified: false, reason: 'No .roadmapper file found' });
 

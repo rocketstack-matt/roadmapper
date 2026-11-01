@@ -90,4 +90,23 @@ describe('api/roadmap', () => {
     expect(fetchIssues).toHaveBeenCalledWith('owner', 'repo', undefined);
     expect(res.headers['Content-Type']).toBe('image/svg+xml');
   });
+
+  test('sets no Cache-Control for repos without webhooks', async () => {
+    const req = createMockReq('/owner/repo/ffffff/24292f');
+    const res = createMockRes();
+
+    await roadmapHandler(req, res);
+
+    expect(res.headers['Cache-Control']).toBeUndefined();
+  });
+
+  test('tells caches to revalidate webhook-driven roadmaps', async () => {
+    const req = createMockReq('/owner/repo/ffffff/24292f');
+    req.webhookDriven = true;
+    const res = createMockRes();
+
+    await roadmapHandler(req, res);
+
+    expect(res.headers['Cache-Control']).toBe('no-cache, no-store, max-age=0, must-revalidate');
+  });
 });

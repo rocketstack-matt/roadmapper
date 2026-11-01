@@ -1176,7 +1176,7 @@ describe('fetchIssues (cached, no conditional requests)', () => {
     const result = await freshFetchIssues('owner', 'repo', 3600);
 
     expect(result).toEqual([nextIssue]);
-    expect(mockCacheIssues).toHaveBeenCalledWith('owner', 'repo', [nextIssue], 3600);
+    expect(mockCacheIssues).toHaveBeenCalledWith('owner', 'repo', [nextIssue], 3600, null, expect.any(Number));
   });
 
   test('fetches and caches when no cache exists (miss)', async () => {
@@ -1195,7 +1195,7 @@ describe('fetchIssues (cached, no conditional requests)', () => {
     const result = await freshFetchIssues('owner', 'repo', 3600);
 
     expect(result).toEqual([nowIssue]);
-    expect(mockCacheIssues).toHaveBeenCalledWith('owner', 'repo', [nowIssue], 3600);
+    expect(mockCacheIssues).toHaveBeenCalledWith('owner', 'repo', [nowIssue], 3600, null, expect.any(Number));
   });
 
   test('never sends an If-None-Match conditional header', async () => {

@@ -9,9 +9,16 @@ const embedHandler = require('./api/embed');
 const htmlHandler = require('./api/html');
 const registerHandler = require('./api/register');
 const confirmHandler = require('./api/confirm');
+const webhookHandler = require('./api/webhook');
 
 const app = express();
 const PORT = process.env.PORT || 5002;
+
+// GitHub App webhooks. Registered before the JSON parser: the signature is
+// checked against the raw body, which the handler reads itself.
+app.post('/api/webhook', async (req, res) => {
+    await webhookHandler(req, res);
+});
 
 // Parse JSON bodies for registration endpoint
 app.use(express.json());

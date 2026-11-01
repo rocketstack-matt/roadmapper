@@ -116,15 +116,31 @@ Only **public** repos are read through the App: paid private access isn't built 
 
 - `isAppConfigured()`: both env vars set and non-blank after trimming.
 - `createAppJwt()`: signs an RS256 App JWT with Node's built-in `crypto` (no JWT dependency). `iat` is backdated 60s for clock drift; `exp` is 9 minutes out. The private key may contain literal `\n` escapes (as env var UIs often store PEMs) — they are unescaped.
-- `getInstallationId(owner, repo)`: reads `install:{owner}/{repo}`; when absent, looks it up via `GET /repos/{owner}/{repo}/installation` (App JWT) and caches it for 24h, recording `installation:{id}`. A 404 caches a `none` marker for 10 minutes, so a new install is noticed quickly without a lookup on every request. Other errors (bad App credentials, outage) aren't cached and the repo is treated as not installed for that request. Lazy lookup means this works before webhooks exist; the TTLs make it self-correcting when a repo is removed from an installation.
+- `getInstallationId(owner, repo)`: reads `install:{owner}/{repo}`; when absent, looks it up via `GET /repos/{owner}/{repo}/installation` (App JWT) and caches it for 24h, recording `installation:{id}`. A 404 caches a `none` marker for 10 minutes, so a new install is noticed quickly without a lookup on every request. Other errors (bad App credentials, outage) aren't cached and the repo is treated as not installed for that request. Lazy lookup means this works without webhooks; the TTLs make it self-correcting when a repo is removed from an installation and the webhook saying so is missed.
 - `getInstallationToken(id, owner, repo)`: mints a token via `POST /app/installations/{id}/access_tokens` scoped to that one repo and to read-only `issues`, `contents` and `metadata` (`TOKEN_PERMISSIONS`). Tokens are held **in process memory only** (never in Redis, logs or responses), per installation and repo, until 5 minutes before their 1-hour expiry — so without Redis a token isn't minted per request either.
 - `isRepoPrivate(owner, repo, headers)`: `GET /repos/{owner}/{repo}` with the installation token, cached in `visibility:{owner}/{repo}` for 60s (`VISIBILITY_TTL`), so a repo made private stops being served within a minute. Anything but an explicit `private: false` counts as private.
 - `getGitHubHeaders(owner, repo)`: **the one place GitHub auth headers come from** — the installation token if the App is installed, else `GITHUB_TOKEN`, else none. Used by `fetchIssues` (`roadmap.js`, called before the issue cache is read so cached issues are never served for a private repo), `fetchRoadmapperFile` (`lib/verify.js`) and `api/register.js`. For an installed repo it **never falls back to `GITHUB_TOKEN`** (the repo may have no `.roadmapper` opt-in): it throws `PrivateRepoError` for a private repo, and `AppAuthError` when the token request or visibility check fails — which also deletes the `install:` mapping so the next lookup notices an uninstall.
 - `getInstallationTier(id)`: the `tier` on `installation:{id}`, default `free`.
 
-**Verification:** on every request, before any cached verification is trusted, `verifyRepo()` checks an installed repo through `getGitHubHeaders()`: a private repo is refused (and its `cache:issues:` entry deleted), and so is one whose installation can't be used (after one retry, so an uninstalled repo is then looked up as not installed). A public installed repo is verified without a `.roadmapper` file, with the higher of the installation's tier and the tier of a confirmed API key registered for the repo (an install never downgrades a paid key). Verifications are cached in `repo:{owner}/{repo}` with `source: 'app' | 'key'`; an `app` verification is ignored once the App is no longer installed, so the repo then needs its own `.roadmapper` file. Everyone else keeps the `.roadmapper` flow.
+**Verification:** on every request, before any cached verification is trusted, `verifyRepo()` checks an installed repo through `getGitHubHeaders()`: a private repo is refused (and its `cache:issues:` entry deleted), and so is one whose installation can't be used (after one retry, so an uninstalled repo is then looked up as not installed). A public installed repo is verified without a `.roadmapper` file, with the higher of the installation's tier and the tier of a confirmed API key registered for the repo (an install never downgrades a paid key). Verifications are cached in `repo:{owner}/{repo}` with `source: 'app' | 'key'`; an `app` verification is ignored once the App is no longer installed, so the repo then needs its own `.roadmapper` file. Everyone else keeps the `.roadmapper` flow. `verifyRepo()` returns `{ verified, tier, source }`.
 
-**Case-folding:** GitHub names are case-insensitive, so `repoSlug()` (`lib/repo-slug.js`) lowercases `owner/repo` in the cache keys (`repo:`, `repo-ttl:`, `install:`, `visibility:`, `cache:issues:`, the rate limit identifier). `repo-key:` is persistent registration data and keeps its registered case; key ownership is compared case-insensitively. `scripts/set-tier.js` sets the tier on the installation (covering all its repos) when the repo is installed, and on the API key when one is registered.
+**Case-folding:** GitHub names are case-insensitive, so `repoSlug()` (`lib/repo-slug.js`) lowercases `owner/repo` in the cache keys (`repo:`, `repo-ttl:`, `install:`, `visibility:`, `cache:issues:`, `cache:invalidated:`, the rate limit identifier). `repo-key:` is persistent registration data and keeps its registered case; key ownership is compared case-insensitively. `scripts/set-tier.js` sets the tier on the installation (covering all its repos) when the repo is installed, and on the API key when one is registered.
+
+### GitHub App Webhooks (`api/webhook.js`)
+
+`POST /api/webhook` receives the App's webhooks so installed repos refresh within seconds of a change. It is enabled by `GITHUB_APP_WEBHOOK_SECRET` (503 without it) and is not wrapped in `withMiddleware` — GitHub delivers from a few IPs, and the signature is the authentication.
+
+- **Signature:** `X-Hub-Signature-256` (`sha256=<hex HMAC-SHA256 of the body>`) is compared with `crypto.timingSafeEqual` over the **raw** body; anything else is a 401. The handler reads the body from the request stream itself: Vercel's helpers buffer the body and replay it on the stream, and `server.js` registers the route **before** `express.json()`. Never parse the body before verifying it.
+- **`installation`:** `created`/`unsuspend`/`new_permissions_accepted` → `addInstallationRepos()`; `deleted` → `deleteInstallation()` (repo mappings, this process's tokens and `installation:{id}`); `suspend` → `deleteInstallation(…, { keepRecord: true })`, which keeps the record and its tier because unsuspending keeps the same id.
+- **`installation_repositories`:** `added` → `addInstallationRepos()`, `removed` → `removeInstallationRepos()`.
+- **`repository`:** `privatized`, `publicized`, `renamed`, `transferred`, `deleted` → `forgetRepo()` (deletes `install:`, `visibility:`, `repo:` and `repo-ttl:`) plus cache invalidation, for the current name and, on rename/transfer, the old one. The next request re-verifies from scratch.
+- **`issues`** (`opened`, `edited`, `closed`, `reopened`, `labeled`, `unlabeled`, `deleted`, `transferred`) and **`label`** (`edited`, `deleted`): `invalidateIssues()` for the repo (and a transferred issue's new repo), only when the repo is paid — its installation's tier is `paid`, or its cached verification's is (an install keeps a paid key's tier) — so free repos keep their soft TTL. Events that can't affect a roadmap are ignored: an issue counts only if it has a `ROADMAP_LABELS` label or the event's `label` is one (so removing `Roadmap: Now` counts); a label counts only if its name, or its old name, starts with `Roadmap` (columns and `Roadmap Group:` labels).
+- **Private repos:** `addInstallationRepos()` never maps a repo whose payload has `private: true` (it still clears any cached mapping and verification for it), so a webhook can't make a private repo's roadmap public. Private repos are also refused on every request by the visibility check in `verifyRepo()`; the `repository` handler just makes a visibility change take effect immediately rather than within `VISIBILITY_TTL`.
+- Responds `{ result: 'updated' | 'invalidated' | 'ignored' }`; a Redis failure is a 500 so the delivery shows as failed and can be redelivered from the App settings. Non-production logs each event as `[webhook] <event>.<action> — <result>`.
+
+**Webhook-driven repos:** the middleware sets `req.webhookDriven` when the repo was verified via the App (`source: 'app'`), its tier is `paid` and `isWebhookConfigured()` (App + webhook secret set). Those repos get `WEBHOOK_CACHE_TTL` (900s, a safety net for missed webhooks) instead of the paid 30s soft TTL, and `api/roadmap.js` sends `Cache-Control: no-cache, no-store, max-age=0, must-revalidate` so GitHub's camo proxy and browsers revalidate. Other repos get no `Cache-Control` header, as before.
+
+**Invalidation race:** `invalidateIssues()` writes `cache:invalidated:{owner}/{repo}` (the time, 24h TTL) and deletes the cache entry. `fetchIssues` records when its GitHub fetch *started* and passes it to `cacheIssues()`, which stores `cachedAt: 0` (already stale) if the marker is newer — so a fetch that began before the change can't be cached as fresh for 15 minutes.
 
 ### Lib Modules (`lib/`)
 
@@ -132,9 +148,9 @@ Only **public** repos are read through the App: paid private access isn't built 
 - `lib/tiers.js`: Tier configuration (free: 3600s cache/60 req/hr, paid: 30s cache/10000 req/hr)
 - `lib/keys.js`: Key generation, hashing, storage, lookup, email confirmation (`confirmRegistration`)
 - `lib/verify.js`: Repo verification — GitHub App installation or `.roadmapper` file, validates key, caches result
-- `lib/github-app.js`: GitHub App auth — App JWT, installation lookup, in-memory installation tokens, visibility check, `getGitHubHeaders()`
+- `lib/github-app.js`: GitHub App auth — App JWT, installation lookup, in-memory installation tokens, visibility check, `getGitHubHeaders()`; install mapping maintenance for webhooks (`addInstallationRepos`, `removeInstallationRepos`, `deleteInstallation`, `forgetRepo`); `isWebhookConfigured()`
 - `lib/repo-slug.js`: `repoSlug(owner, repo)` — lowercased `owner/repo` for Redis keys
-- `lib/cache.js`: GitHub issues response caching with ETag support and application-level freshness
+- `lib/cache.js`: GitHub issues response caching with ETag support, application-level freshness and webhook invalidation (`invalidateIssues`)
 - `lib/ratelimit.js`: Per-repo and per-IP rate limiting using `@upstash/ratelimit`
 - `lib/email.js`: Resend email client with graceful fallback (`isEmailConfigured`, `sendConfirmationEmail`)
 - `lib/analytics.js`: Google Analytics — `gaSnippet()` (gtag snippet for every HTML page's `<head>`) and `trackEvent()` (server-side Measurement Protocol events). Both read `GA_MEASUREMENT_ID` trimmed, so a stray newline in the env value can't break the inline script
@@ -148,7 +164,7 @@ The `withMiddleware(handler, options)` higher-order function wraps all API handl
 3. Verifies repo via GitHub App installation or `.roadmapper` file (cached)
 4. Checks per-repo rate limit (tier-based)
 5. Sets `X-RateLimit-*` response headers
-6. Attaches `req.tier` and `req.cacheTtl` to request
+6. Attaches `req.tier`, `req.webhookDriven` and `req.cacheTtl` to request (see "Webhook-driven repos")
 7. Returns error SVG or HTML for unregistered/rate-limited repos
 
 **Options:**
@@ -176,7 +192,8 @@ The `withMiddleware(handler, options)` higher-order function wraps all API handl
 | **MISS** — no cache entry | Fetch all roadmap labels, cache merged result | 1 request per label page |
 | **No `cacheTtlSeconds`** | Direct label-filtered fetch, no caching | 1 request per label page |
 
-**Soft TTL by tier:** Free = 3600s (60 min), Paid = 30s.
+**Soft TTL by tier:** Free = 3600s (60 min), Paid = 30s, Paid with the App installed and webhooks configured = 900s (`WEBHOOK_CACHE_TTL`; webhooks invalidate the cache, so this is only a safety net).
+
 
 **ETag note:** This branch removed the GitHub ETag conditional-request path that previously made STALE refreshes free (304). The `{ issues, etag, cachedAt }` format and `lib/cache.js`'s `etag` plumbing are retained (the field is written as `null`) so ETag revalidation can be reintroduced later on top of the per-label fetch — each label URL would carry its own ETag. See the `feat/etag-caching` branch for the prior conditional-request implementation.
 
@@ -185,7 +202,7 @@ The `withMiddleware(handler, options)` higher-order function wraps all API handl
 **Debug logging:** When `VERCEL_ENV !== 'production'` (i.e. local dev and Vercel preview deployments), `fetchIssues` logs each cache path to the console with a `[cache owner/repo]` prefix. These logs are silent in production.
 
 **Key files:**
-- `lib/cache.js`: `getCachedIssues()`, `cacheIssues()`, `isCacheFresh()` — cache read/write/freshness
+- `lib/cache.js`: `getCachedIssues()`, `cacheIssues()`, `isCacheFresh()`, `invalidateIssues()` — cache read/write/freshness/invalidation
 - `roadmap.js`: `fetchIssues()` — cache lookup + freshness; `fetchRoadmapIssues()` / `fetchIssuesForLabel()` — per-label paginated fetch and merge; `stripIssueFields()` — trims issues to renderer-essential fields
 
 ### Redis Data Model
@@ -197,6 +214,7 @@ repo-key:{owner}/{repo}        → String (key hash, for duplicate checking)
 repo-ttl:{owner}/{repo}        → String (TTL marker, expires after 24hr)
 confirm:{token}                → String (key hash, 24hr TTL, one-time use)
 cache:issues:{owner}/{repo}    → String (JSON { issues, etag, cachedAt }, no TTL)
+cache:invalidated:{owner}/{repo} → String (ms timestamp of the last webhook invalidation, 24hr TTL)
 install:{owner}/{repo}         → String (GitHub App installation id, 24hr TTL; "none" = not installed, 10min TTL)
 installation:{id}              → Hash { account, repos (JSON array of owner/repo seen), tier }
 visibility:{owner}/{repo}      → String ('public' | 'private', 60s TTL; installed repos only)
@@ -243,7 +261,8 @@ The project uses **Jest** for testing. Tests live in the `tests/` directory.
 - `tests/lib/middleware.test.js`: Middleware passthrough, unregistered error, rate limit error, req augmentation
 - `tests/lib/tiers.test.js`: Tier configuration structure
 - `tests/lib/cache.test.js`: Issue cache format, ETag storage, `isCacheFresh` logic
-- `tests/lib/github-app.test.js`: App JWT signing, installation lookup/caching, token caching, header fallback
+- `tests/lib/github-app.test.js`: App JWT signing, installation lookup/caching, token caching, header fallback, webhook install mapping
+- `tests/api-webhook.test.js`: Webhook signature verification (raw body), installation/repository events, issue/label cache invalidation, invalidation race
 
 ### Writing Tests
 
@@ -383,6 +402,14 @@ GET /api/confirm?token=xxx
 
 Handles email confirmation links. Looks up the confirmation token, marks the registration as confirmed (removes 24hr TTL), and returns an HTML success/error page. Tokens are single-use and expire after 24 hours.
 
+#### 8. GitHub App Webhook (`api/webhook.js`)
+
+```text
+POST /api/webhook
+```
+
+Receives the GitHub App's signed webhooks; see "GitHub App Webhooks". Returns 401 for a bad signature, 503 when `GITHUB_APP_WEBHOOK_SECRET` isn't set.
+
 ### Local Development URLs
 
 When running locally with `npm run run`, the Express server runs on port 5002:
@@ -419,6 +446,7 @@ Example: `http://localhost:5002/rocketstack-matt/roadmapper/ffffff/24292f`
 - `api/html.js`: HTML code generator utility
 - `api/register.js`: API key registration endpoint (POST)
 - `api/confirm.js`: Email confirmation endpoint (GET)
+- `api/webhook.js`: GitHub App webhook endpoint (POST)
 - `lib/redis.js`: Upstash Redis client with no-op fallback
 - `lib/email.js`: Resend email client with graceful fallback
 - `lib/analytics.js`: Google Analytics snippet and server-side events
@@ -447,6 +475,7 @@ Example: `http://localhost:5002/rocketstack-matt/roadmapper/ffffff/24292f`
 | `GITHUB_TOKEN` | Optional | GitHub PAT for higher API rate limits (60/hr → 5,000/hr); used for repos without the GitHub App |
 | `GITHUB_APP_ID` | Optional | GitHub App ID. With `GITHUB_APP_PRIVATE_KEY`, repos with the App installed use installation tokens |
 | `GITHUB_APP_PRIVATE_KEY` | Optional | GitHub App private key (PEM; literal `\n` escapes allowed) |
+| `GITHUB_APP_WEBHOOK_SECRET` | Optional | GitHub App webhook secret. Enables `POST /api/webhook`; paid installed repos then refresh on webhooks |
 | `UPSTASH_REDIS_REST_URL` | Optional | Upstash Redis REST URL for auth, rate limiting, and caching |
 | `UPSTASH_REDIS_REST_TOKEN` | Optional | Upstash Redis REST token |
 | `RESEND_API_KEY` | Optional | Resend API key for email confirmation. Without it: keys work immediately |
@@ -625,6 +654,7 @@ Builds multiple serverless functions:
 - `api/html.js` - HTML code generator
 - `api/register.js` - Registration endpoint
 - `api/confirm.js` - Email confirmation endpoint
+- `api/webhook.js` - GitHub App webhook endpoint
 - `public/**` - Static files (logo, avatar)
 
 ### Routes
@@ -633,6 +663,7 @@ The routing is simplified - users don't need to include `/api/` in URLs:
 - `/` → `api/index.js`
 - `POST /api/register` → `api/register.js`
 - `GET /api/confirm` → `api/confirm.js`
+- `POST /api/webhook` → `api/webhook.js`
 - `/:owner/:repo/:bgColor/:textColor` → `api/roadmap.js`
 - `/view/:owner/:repo/:bgColor/:textColor` → `api/view.js`
 - `/embed/:owner/:repo/:bgColor/:textColor` → `api/embed.js`
