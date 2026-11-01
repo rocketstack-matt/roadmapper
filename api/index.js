@@ -1165,7 +1165,9 @@ ${installUrl ? '      </details>\n' : ''}    </div>
       <p style="margin-top: 12px;">
         <a href="https://github.com/rocketstack-matt/roadmapper" target="_blank">GitHub</a> ·
         <a href="https://github.com/rocketstack-matt/roadmapper/issues" target="_blank">Issues</a> ·
-        <a href="https://github.com/rocketstack-matt/roadmapper" target="_blank">Documentation</a>
+        <a href="https://github.com/rocketstack-matt/roadmapper" target="_blank">Documentation</a> ·
+        <a href="/privacy">Privacy</a> ·
+        <a href="/terms">Terms</a>
       </p>
     </div>
   </footer>

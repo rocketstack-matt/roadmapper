@@ -274,6 +274,7 @@ The project uses **Jest** for testing. Tests live in the `tests/` directory.
 - `tests/lib/cache.test.js`: Issue cache format, ETag storage, `isCacheFresh` logic
 - `tests/lib/github-app.test.js`: App JWT signing, installation lookup/caching, token caching, header fallback, webhook install mapping, install URL, installation tier get/set, installation repo listing
 - `tests/api-setup.test.js`: GitHub App setup page (repo listing, first-roadmap guide, embed URLs, private repos counted not named, tier notice, error states)
+- `tests/api-legal.test.js`: Privacy policy and terms pages (`/privacy`, `/terms`, 404 otherwise) and the landing footer links
 - `tests/api-webhook.test.js`: Webhook signature verification (raw body), installation/repository events, issue/label cache invalidation, invalidation race
 - `tests/scripts/set-tier.test.js`: `scripts/set-tier.js` — cached install mapping without App credentials, unknown-installation warning and exit code, GitHub lookup, `--installation`
 
@@ -432,6 +433,15 @@ GET /setup?installation_id=:id&setup_action=install
 
 The App's Setup URL: lists an installation's public repos and their embed URLs after install; see "GitHub App Install Flow".
 
+#### 10. Privacy Policy and Terms of Service (`api/legal.js`)
+
+```text
+GET /privacy
+GET /terms
+```
+
+Static pages, linked from the landing page footer and used as the GitHub App's Marketplace privacy policy and terms URLs. The operator (Westwood Hill (CP) Ltd, trading as Rocketstack), contact email, governing law and "last updated" date are constants at the top of the file; update `LAST_UPDATED` whenever the text changes, and the privacy policy whenever the service starts collecting or sharing new data (e.g. a new provider).
+
 ### Local Development URLs
 
 When running locally with `npm run run`, the Express server runs on port 5002:
@@ -470,6 +480,7 @@ Example: `http://localhost:5002/rocketstack-matt/roadmapper/ffffff/24292f`
 - `api/confirm.js`: Email confirmation endpoint (GET)
 - `api/webhook.js`: GitHub App webhook endpoint (POST)
 - `api/setup.js`: GitHub App post-install setup page (GET)
+- `api/legal.js`: Privacy policy and terms of service pages (GET)
 - `lib/redis.js`: Upstash Redis client with no-op fallback
 - `lib/email.js`: Resend email client with graceful fallback
 - `lib/analytics.js`: Google Analytics snippet and server-side events
@@ -684,6 +695,7 @@ Builds multiple serverless functions:
 - `api/confirm.js` - Email confirmation endpoint
 - `api/webhook.js` - GitHub App webhook endpoint
 - `api/setup.js` - GitHub App setup page
+- `api/legal.js` - Privacy policy and terms of service
 - `public/**` - Static files (logos, avatar)
 
 ### Routes
@@ -694,6 +706,7 @@ The routing is simplified - users don't need to include `/api/` in URLs:
 - `GET /api/confirm` → `api/confirm.js`
 - `POST /api/webhook` → `api/webhook.js`
 - `/setup` → `api/setup.js`
+- `/privacy`, `/terms` → `api/legal.js`
 - `/:owner/:repo/:bgColor/:textColor` → `api/roadmap.js`
 - `/view/:owner/:repo/:bgColor/:textColor` → `api/view.js`
 - `/embed/:owner/:repo/:bgColor/:textColor` → `api/embed.js`

@@ -11,6 +11,7 @@ const registerHandler = require('./api/register');
 const confirmHandler = require('./api/confirm');
 const webhookHandler = require('./api/webhook');
 const setupHandler = require('./api/setup');
+const legalHandler = require('./api/legal');
 
 const app = express();
 const PORT = process.env.PORT || 5002;
@@ -45,6 +46,11 @@ app.get('/api/confirm', async (req, res) => {
 // GitHub App setup URL (where GitHub sends users after installing the App)
 app.get('/setup', async (req, res) => {
     await setupHandler(req, res);
+});
+
+// Privacy policy and terms of service
+app.get(['/privacy', '/terms'], async (req, res) => {
+    await legalHandler(req, res);
 });
 
 // View page handler
