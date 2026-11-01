@@ -991,6 +991,43 @@ describe('fetchIssues (no caching)', () => {
     expect(axios.get).toHaveBeenCalledWith(expect.any(String), { headers: {} });
   });
 
+  test('uses the GitHub App installation token when the App is installed', async () => {
+    const { privateKey } = require('crypto').generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+    });
+    process.env.GITHUB_APP_ID = '12345';
+    process.env.GITHUB_APP_PRIVATE_KEY = privateKey;
+    process.env.GITHUB_TOKEN = 'shared-token';
+    mockByLabel({});
+    const issuesMock = axios.get.getMockImplementation();
+    axios.get.mockImplementation((url, config) => {
+      if (url.endsWith('/installation')) return Promise.resolve({ data: { id: 42, account: { login: 'owner' } } });
+      if (url.endsWith('/repos/owner/repo')) return Promise.resolve({ data: { private: false } });
+      return issuesMock(url, config);
+    });
+    axios.post.mockResolvedValue({
+      data: { token: 'ghs_installation', expires_at: new Date(Date.now() + 3600 * 1000).toISOString() },
+    });
+
+    await fetchIssues('owner', 'repo');
+
+    expect(axios.post).toHaveBeenCalledWith(
+      'https://api.github.com/app/installations/42/access_tokens',
+      { repositories: ['repo'], permissions: { issues: 'read', contents: 'read', metadata: 'read' } },
+      expect.anything()
+    );
+    expect(axios.get).toHaveBeenCalledWith(
+      expect.stringContaining('/issues?'),
+      { headers: { Authorization: 'Bearer ghs_installation' } }
+    );
+    expect(axios.get).not.toHaveBeenCalledWith(
+      expect.stringContaining('/issues?'),
+      { headers: { Authorization: 'Bearer shared-token' } }
+    );
+  });
+
   test('paginates a label until a page returns fewer than 100 issues', async () => {
     const fullPage = Array.from({ length: 100 }, (_, i) =>
       createMockIssue(100 + i, `Now ${i}`, 'Roadmap: Now', '2da44e')
@@ -1063,6 +1100,7 @@ describe('fetchIssues (cached, no conditional requests)', () => {
     mockCacheIssues = jest.fn(() => Promise.resolve());
     mockIsCacheFresh = jest.fn(() => false);
 
+    jest.dontMock('../lib/github-app');
     jest.doMock('../lib/cache', () => ({
       getCachedIssues: mockGetCachedIssues,
       cacheIssues: mockCacheIssues,
@@ -1083,6 +1121,23 @@ describe('fetchIssues (cached, no conditional requests)', () => {
     const { fetchIssues: freshFetchIssues } = require('../roadmap');
     return { axios: freshAxios, fetchIssues: freshFetchIssues };
   }
+
+  test('refuses a private repo in an App installation without reading the cache', async () => {
+    jest.doMock('../lib/github-app', () => {
+      class PrivateRepoError extends Error {}
+      return {
+        PrivateRepoError,
+        getGitHubHeaders: jest.fn(() => Promise.reject(new PrivateRepoError('owner/repo is a private repository'))),
+      };
+    });
+    mockIsCacheFresh.mockReturnValue(true);
+    const { axios: freshAxios, fetchIssues: freshFetchIssues } = requireFresh();
+    freshAxios.get.mockReset();
+
+    await expect(freshFetchIssues('owner', 'repo', 3600)).rejects.toThrow('private repository');
+    expect(mockGetCachedIssues).not.toHaveBeenCalled();
+    expect(freshAxios.get).not.toHaveBeenCalled();
+  });
 
   test('returns cached issues (stripped) without any API call when cache is fresh', async () => {
     const cachedIssues = [

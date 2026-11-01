@@ -1,5 +1,5 @@
 const {
-  generateApiKey, hashApiKey, storeApiKey, lookupApiKey, keyExistsForRepo,
+  generateApiKey, hashApiKey, storeApiKey, lookupApiKey, keyExistsForRepo, getRepoKeyHash,
   storeConfirmToken, lookupConfirmToken, confirmRegistration, REGISTRATION_TTL,
 } = require('../../lib/keys');
 
@@ -87,6 +87,17 @@ describe('lib/keys', () => {
       expect(redis.set).toHaveBeenCalledWith('repo-key:facebook/react', expect.any(String));
     });
 
+    test('stores the reverse lookup lowercased and the key record in its registered case', async () => {
+      const key = 'rm_test1234567890abcdef12345678';
+      await storeApiKey(key, { owner: 'FaceBook', repo: 'React', email: 'test@example.com' });
+
+      expect(redis.set).toHaveBeenCalledWith('repo-key:facebook/react', expect.any(String));
+      expect(redis.hset).toHaveBeenCalledWith(
+        expect.stringContaining('apikey:'),
+        expect.objectContaining({ owner: 'FaceBook', repo: 'React' })
+      );
+    });
+
     test('returns the hash', async () => {
       const key = 'rm_test1234567890abcdef12345678';
       const hash = await storeApiKey(key, { owner: 'facebook', repo: 'react', email: 'test@example.com' });
@@ -123,6 +134,33 @@ describe('lib/keys', () => {
 
       const exists = await keyExistsForRepo('facebook', 'react');
       expect(exists).toBe(false);
+    });
+
+    test('finds a key registered in another case', async () => {
+      redis.get.mockImplementation((key) => Promise.resolve(key === 'repo-key:facebook/react' ? 'somehash' : null));
+
+      expect(await keyExistsForRepo('Facebook', 'React')).toBe(true);
+    });
+  });
+
+  describe('getRepoKeyHash', () => {
+    test('reads the lowercased key', async () => {
+      redis.get.mockImplementation((key) => Promise.resolve(key === 'repo-key:facebook/react' ? 'somehash' : null));
+
+      expect(await getRepoKeyHash('FaceBook', 'React')).toBe('somehash');
+    });
+
+    test('falls back to a key stored in the request case before case-folding', async () => {
+      redis.get.mockImplementation((key) => Promise.resolve(key === 'repo-key:Facebook/React' ? 'legacyhash' : null));
+
+      expect(await getRepoKeyHash('Facebook', 'React')).toBe('legacyhash');
+    });
+
+    test('returns null without a second lookup for a lowercase request', async () => {
+      redis.get.mockResolvedValue(null);
+
+      expect(await getRepoKeyHash('facebook', 'react')).toBeNull();
+      expect(redis.get).toHaveBeenCalledTimes(1);
     });
   });
 

@@ -200,13 +200,15 @@ This project can be deployed to any serverless platform that supports Node.js:
 2. Connect to your hosting platform (e.g., Vercel)
 3. Set environment variables:
    - `GITHUB_TOKEN` — GitHub Personal Access Token (recommended, for higher API rate limits)
+   - `GITHUB_APP_ID` — GitHub App ID (optional; with the private key, repos that install the App are read with their own installation token and need no `.roadmapper` file)
+   - `GITHUB_APP_PRIVATE_KEY` — GitHub App private key in PEM format (literal `\n` escapes are accepted)
    - `UPSTASH_REDIS_REST_URL` — Upstash Redis REST URL (required for registration, rate limiting, caching)
    - `UPSTASH_REDIS_REST_TOKEN` — Upstash Redis REST token
    - `RESEND_API_KEY` — Resend API key (optional, enables email confirmation on registration)
    - `FROM_EMAIL` — Sender email address (optional, defaults to `Roadmapper <noreply@roadmapper.rocketstack.co>`)
 4. Deploy
 
-Without the Upstash Redis variables, the service runs unrestricted (no registration required, no rate limits, no caching). Without `RESEND_API_KEY`, keys work immediately after registration (no email confirmation required).
+Without the GitHub App variables, every repo is read with `GITHUB_TOKEN` and verified with its `.roadmapper` file. Without the Upstash Redis variables, the service runs unrestricted (no registration required, no rate limits, no caching). Without `RESEND_API_KEY`, keys work immediately after registration (no email confirmation required).
 
 ## How Labels Work
 
@@ -297,6 +299,21 @@ To increase the rate limit to 5,000 requests/hour, add a GitHub Personal Access 
 3. **Restart the server** - The token will be automatically used for all GitHub API requests.
 
 **Security Note:** Never commit your `.env` file or expose your token in public repositories.
+
+### GitHub App Authentication (Optional)
+
+Instead of sharing one token across every roadmap, a deployment can read repos through a GitHub App: each repo where the App is installed is read with that installation's own token (and its own rate limit), and needs no `.roadmapper` file. Repos without the App keep using `GITHUB_TOKEN` and the `.roadmapper` file.
+
+Only public repos are served through the App. A private repo in an installation is refused, and a repo made private stops being served within a minute. Tokens are scoped to the one repo being read, with read-only Issues, Contents and Metadata, and are kept in memory only.
+
+1. **Create a GitHub App** (Settings → Developer settings → GitHub Apps → New GitHub App) with these repository permissions, all read-only:
+   - **Issues**: Read — to fetch roadmap issues
+   - **Metadata**: Read — required by GitHub for every App
+   - **Contents**: Read — to read `.roadmapper` files
+   Webhooks can be left inactive; installations are discovered on first request.
+2. **Generate a private key** for the App and note its **App ID**.
+3. **Set the environment variables** `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` (the PEM contents; on one line, newlines may be written as `\n`).
+4. **Install the App** on the repositories whose roadmaps you want to serve.
 
 ## License
 

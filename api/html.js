@@ -352,7 +352,7 @@ ${mapAreas}
     res.setHeader('Content-Type', 'text/html');
     res.send(html);
   } catch (error) {
-    res.status(500).send('Error fetching GitHub issues: ' + error.message);
+    res.status(500).send('Error fetching GitHub issues');
   }
 };
 

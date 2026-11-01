@@ -5,6 +5,10 @@ jest.mock('../lib/keys', () => ({
   keyExistsForRepo: jest.fn(() => Promise.resolve(false)),
   storeConfirmToken: jest.fn(() => Promise.resolve()),
 }));
+jest.mock('../lib/github-app', () => ({
+  getGitHubHeaders: jest.fn(() => Promise.resolve({ Authorization: 'Bearer ghs_installation' })),
+  PrivateRepoError: class PrivateRepoError extends Error {},
+}));
 jest.mock('../lib/email', () => ({
   isEmailConfigured: jest.fn(() => false),
   sendConfirmationEmail: jest.fn(() => Promise.resolve({ sent: true })),
@@ -13,6 +17,7 @@ jest.mock('../lib/email', () => ({
 const axios = require('axios');
 const { generateApiKey, storeApiKey, keyExistsForRepo, storeConfirmToken } = require('../lib/keys');
 const { isEmailConfigured, sendConfirmationEmail } = require('../lib/email');
+const { getGitHubHeaders } = require('../lib/github-app');
 const registerHandler = require('../api/register');
 
 const createMockReq = (body, method = 'POST') => ({
@@ -51,6 +56,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   keyExistsForRepo.mockResolvedValue(false);
   axios.get.mockResolvedValue({ data: { full_name: 'owner/repo' } });
+  getGitHubHeaders.mockResolvedValue({ Authorization: 'Bearer ghs_installation' });
 });
 
 describe('api/register', () => {
@@ -93,6 +99,32 @@ describe('api/register', () => {
 
     expect(res.statusCode).toBe(409);
     expect(res.body.error).toContain('already exists');
+  });
+
+  test('checks the repo exists with the repo\'s GitHub auth headers', async () => {
+    const req = createMockReq({ owner: 'facebook', repo: 'react', email: 'test@example.com' });
+    const res = createMockRes();
+
+    await registerHandler(req, res);
+
+    expect(getGitHubHeaders).toHaveBeenCalledWith('facebook', 'react');
+    expect(axios.get).toHaveBeenCalledWith(
+      'https://api.github.com/repos/facebook/react',
+      { headers: { Authorization: 'Bearer ghs_installation' } }
+    );
+  });
+
+  test('returns 403 for a private repo in an App installation', async () => {
+    const { PrivateRepoError } = require('../lib/github-app');
+    getGitHubHeaders.mockRejectedValue(new PrivateRepoError('owner/secret is a private repository'));
+
+    const req = createMockReq({ owner: 'owner', repo: 'secret', email: 'test@example.com' });
+    const res = createMockRes();
+
+    await registerHandler(req, res);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.error).toContain('Private repositories');
   });
 
   test('returns 404 when repo does not exist on GitHub', async () => {
