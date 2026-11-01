@@ -1,6 +1,7 @@
 const { withMiddleware } = require('../lib/middleware');
 const { gaSnippet } = require('../lib/analytics');
 const { escapeXml } = require('../roadmap');
+const { TIERS } = require('../lib/tiers');
 const {
   isAppConfigured,
   isWebhookConfigured,
@@ -161,9 +162,11 @@ const handler = async (req, res) => {
   const privateCount = installation.repositories.length - publicRepos.length;
   const account = installation.account ? ` for <strong>${escapeXml(installation.account)}</strong>` : '';
 
-  const live = tier === 'paid' && isWebhookConfigured();
-  const tierNotice = live
+  const paidNotice = isWebhookConfigured()
     ? '<strong>Paid plan:</strong> roadmaps update within seconds of an issue changing.'
+    : `<strong>Paid plan:</strong> roadmaps refresh every ${TIERS.paid.cacheTtl} seconds.`;
+  const tierNotice = tier === 'paid'
+    ? paidNotice
     : '<strong>Free plan:</strong> roadmaps refresh hourly. The paid plan updates them within seconds of an issue changing — <a href="https://github.com/rocketstack-matt/roadmapper/issues" target="_blank">get in touch</a> to upgrade.';
   const privateNotice = privateCount
     ? `<div class="notice">${privateCount} private ${privateCount === 1 ? 'repository is' : 'repositories are'} not shown: Roadmapper only serves public repositories for now.</div>`

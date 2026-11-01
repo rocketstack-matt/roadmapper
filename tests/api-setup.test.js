@@ -98,7 +98,33 @@ describe('api/setup', () => {
     const res = await render('/setup?installation_id=42');
 
     expect(res.body).toContain('Paid plan:');
+    expect(res.body).toContain('within seconds');
     expect(res.body).not.toContain('Free plan:');
+    expect(res.body).not.toContain('to upgrade');
+  });
+
+  test('paid installs without webhooks configured are still paid, on the paid cache TTL', async () => {
+    getInstallationTier.mockResolvedValue('paid');
+    getInstallationRepos.mockResolvedValue(installation([]));
+
+    const res = await render('/setup?installation_id=42');
+
+    expect(res.body).toContain('Paid plan:');
+    expect(res.body).toContain('refresh every 30 seconds');
+    expect(res.body).not.toContain('within seconds');
+    expect(res.body).not.toContain('Free plan:');
+    expect(res.body).not.toContain('to upgrade');
+  });
+
+  test('free installs are offered an upgrade even with webhooks configured', async () => {
+    process.env.GITHUB_APP_WEBHOOK_SECRET = 'secret';
+    getInstallationRepos.mockResolvedValue(installation([]));
+
+    const res = await render('/setup?installation_id=42');
+
+    expect(res.body).toContain('Free plan:');
+    expect(res.body).toContain('get in touch</a> to upgrade');
+    expect(res.body).not.toContain('Paid plan:');
   });
 
   test('escapes names from GitHub', async () => {
