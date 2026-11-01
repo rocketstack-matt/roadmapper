@@ -40,6 +40,11 @@ const handler = async (req, res) => {
     });
 
     res.setHeader('Content-Type', 'image/svg+xml');
+    // Webhook-driven roadmaps change within seconds of an issue changing, so
+    // GitHub's camo proxy and browsers must revalidate rather than keep a copy.
+    if (req.webhookDriven) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, max-age=0, must-revalidate');
+    }
     res.send(svgContent);
   } catch (error) {
     res.status(500).send('Error fetching GitHub issues');

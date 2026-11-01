@@ -1,10 +1,11 @@
 jest.mock('../../lib/redis', () => ({
   get: jest.fn(() => Promise.resolve(null)),
   set: jest.fn(() => Promise.resolve('OK')),
+  del: jest.fn(() => Promise.resolve(1)),
 }));
 
 const redis = require('../../lib/redis');
-const { getCachedIssues, cacheIssues, isCacheFresh } = require('../../lib/cache');
+const { getCachedIssues, cacheIssues, invalidateIssues, isCacheFresh } = require('../../lib/cache');
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -53,6 +54,11 @@ describe('lib/cache', () => {
       await getCachedIssues('facebook', 'react');
       expect(redis.get).toHaveBeenCalledWith('cache:issues:facebook/react');
     });
+
+    test('lowercases the cache key, as GitHub names are case-insensitive', async () => {
+      await getCachedIssues('Facebook', 'React');
+      expect(redis.get).toHaveBeenCalledWith('cache:issues:facebook/react');
+    });
   });
 
   describe('cacheIssues', () => {
@@ -89,9 +95,69 @@ describe('lib/cache', () => {
       expect(parsed.etag).toBeNull();
     });
 
+    test('stores the fetch start time as cachedAt', async () => {
+      await cacheIssues('owner', 'repo', mockIssues, 3600, null, 12345);
+
+      const parsed = JSON.parse(redis.set.mock.calls[0][1]);
+      expect(parsed.cachedAt).toBe(12345);
+    });
+
+    test('stores issues already stale when invalidated after the fetch started', async () => {
+      redis.get.mockResolvedValueOnce('2000');
+      await cacheIssues('owner', 'repo', mockIssues, 3600, null, 1000);
+
+      expect(redis.get).toHaveBeenCalledWith('cache:invalidated:owner/repo');
+      const parsed = JSON.parse(redis.set.mock.calls[0][1]);
+      expect(parsed.issues).toEqual(mockIssues);
+      expect(parsed.cachedAt).toBe(0);
+    });
+
+    test('stores issues fresh when invalidated before the fetch started', async () => {
+      redis.get.mockResolvedValueOnce('500');
+      await cacheIssues('owner', 'repo', mockIssues, 3600, null, 1000);
+
+      const parsed = JSON.parse(redis.set.mock.calls[0][1]);
+      expect(parsed.cachedAt).toBe(1000);
+    });
+
+    test('removes pre-change issues when invalidation lands between marker read and cache write', async () => {
+      const stored = new Map();
+      redis.get.mockImplementationOnce(async key => stored.get(key) ?? null)
+        .mockImplementationOnce(async key => stored.get(key) ?? null)
+        .mockImplementationOnce(async key => stored.get(key) ?? null);
+      redis.del.mockImplementationOnce(async key => stored.delete(key))
+        .mockImplementationOnce(async key => stored.delete(key));
+      redis.set.mockImplementationOnce(async (key, value) => {
+        // The initial marker GET has completed, but the cache SET hasn't.
+        await invalidateIssues('owner', 'repo');
+        stored.set(key, value);
+      }).mockImplementationOnce(async (key, value) => stored.set(key, value));
+
+      await cacheIssues('owner', 'repo', mockIssues, 900, null, Date.now() - 1000);
+
+      expect(redis.get.mock.calls.slice(0, 2)).toEqual([
+        ['cache:invalidated:owner/repo'],
+        ['cache:invalidated:owner/repo'],
+      ]);
+      expect(await getCachedIssues('owner', 'repo')).toBeNull();
+    });
+
     test('always stores (ttlSeconds no longer controls storage)', async () => {
       await cacheIssues('owner', 'repo', mockIssues, 0);
       expect(redis.set).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('invalidateIssues', () => {
+    test('records an invalidation marker and deletes the cached issues', async () => {
+      const before = Date.now();
+      await invalidateIssues('Owner', 'Repo');
+
+      const [key, value, options] = redis.set.mock.calls[0];
+      expect(key).toBe('cache:invalidated:owner/repo');
+      expect(Number(value)).toBeGreaterThanOrEqual(before);
+      expect(options).toEqual({ ex: 86400 });
+      expect(redis.del).toHaveBeenCalledWith('cache:issues:owner/repo');
     });
   });
 

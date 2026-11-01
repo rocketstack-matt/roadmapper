@@ -459,9 +459,10 @@ const fetchIssues = async (owner, repo, cacheTtlSeconds) => {
         }
 
         if (debug) console.log(`${tag} ${cached ? 'STALE' : 'MISS'} — fetching roadmap issues`);
+        const fetchedAt = Date.now();
         const issues = await fetchRoadmapIssues(owner, repo, headers);
         if (debug) console.log(`${tag} fetched ${issues.length} roadmap issues — caching`);
-        await cacheIssues(owner, repo, issues, cacheTtlSeconds);
+        await cacheIssues(owner, repo, issues, cacheTtlSeconds, null, fetchedAt);
         return issues;
     }
 
@@ -473,6 +474,7 @@ module.exports = {
     generateRoadmapSVG,
     fetchIssues,
     stripIssueFields,
+    ROADMAP_LABELS,
     validateHexColor,
     normalizeHex,
     hexToRgba,

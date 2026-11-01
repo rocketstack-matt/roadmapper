@@ -202,6 +202,7 @@ This project can be deployed to any serverless platform that supports Node.js:
    - `GITHUB_TOKEN` — GitHub Personal Access Token (recommended, for higher API rate limits)
    - `GITHUB_APP_ID` — GitHub App ID (optional; with the private key, repos that install the App are read with their own installation token and need no `.roadmapper` file)
    - `GITHUB_APP_PRIVATE_KEY` — GitHub App private key in PEM format (literal `\n` escapes are accepted)
+   - `GITHUB_APP_WEBHOOK_SECRET` — GitHub App webhook secret (optional; enables `POST /api/webhook`, which refreshes paid installed repos within seconds of a change)
    - `UPSTASH_REDIS_REST_URL` — Upstash Redis REST URL (required for registration, rate limiting, caching)
    - `UPSTASH_REDIS_REST_TOKEN` — Upstash Redis REST token
    - `RESEND_API_KEY` — Resend API key (optional, enables email confirmation on registration)
@@ -263,8 +264,11 @@ Roadmapper uses per-repository rate limiting and response caching:
 |------|-----------------|------------|
 | Free (registered) | Every 60 minutes | 60 requests/hour |
 | Paid (coming soon) | Every 30 seconds | ~Unlimited |
+| Paid, with the GitHub App installed | Within seconds of an issue changing | ~Unlimited |
 
 The cache TTL controls how often your roadmap data refreshes from GitHub. All viewers within the cache window see the same cached response. The rate limit is a secondary protection against abuse.
+
+Paid repos with the Roadmapper GitHub App installed don't wait for a timer: GitHub notifies Roadmapper by webhook when a roadmap issue or label changes, and the next request fetches fresh data. Their SVG is also sent with `Cache-Control: no-cache`, so GitHub's image proxy and browsers don't keep showing an old copy. In case a webhook is ever missed, their cache still refreshes every 15 minutes.
 
 ### GitHub API Rate Limits
 
@@ -310,10 +314,17 @@ Only public repos are served through the App. A private repo in an installation 
    - **Issues**: Read — to fetch roadmap issues
    - **Metadata**: Read — required by GitHub for every App
    - **Contents**: Read — to read `.roadmapper` files
-   Webhooks can be left inactive; installations are discovered on first request.
-2. **Generate a private key** for the App and note its **App ID**.
-3. **Set the environment variables** `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` (the PEM contents; on one line, newlines may be written as `\n`).
-4. **Install the App** on the repositories whose roadmaps you want to serve.
+2. **Set up the webhook** (optional, but needed for real-time updates):
+   - **Webhook URL**: `https://<your-domain>/api/webhook`
+   - **Webhook secret**: a long random string (for example `openssl rand -hex 32`)
+   - **Subscribe to events**: Issues, Label and Repository (installation events are always sent)
+
+   Without webhooks, installations are still discovered on first request and roadmaps refresh on their tier's timer.
+3. **Generate a private key** for the App and note its **App ID**.
+4. **Set the environment variables** `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` (the PEM contents; on one line, newlines may be written as `\n`) and, with webhooks, `GITHUB_APP_WEBHOOK_SECRET`.
+5. **Install the App** on the repositories whose roadmaps you want to serve.
+
+Webhook deliveries are rejected unless their `X-Hub-Signature-256` signature matches the secret. With webhooks, a repo made private stops being served immediately rather than within a minute.
 
 ## License
 

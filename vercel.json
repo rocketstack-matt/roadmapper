@@ -30,6 +30,10 @@
       "use": "@vercel/node"
     },
     {
+      "src": "api/webhook.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "public/**",
       "use": "@vercel/static"
     }
@@ -47,6 +51,11 @@
       "src": "/api/register",
       "methods": ["POST"],
       "dest": "/api/register.js"
+    },
+    {
+      "src": "/api/webhook",
+      "methods": ["POST"],
+      "dest": "/api/webhook.js"
     },
     {
       "src": "/api/confirm",
