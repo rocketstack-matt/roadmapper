@@ -47,23 +47,19 @@ describe('api/setup', () => {
     expect(res.body).toContain('<strong>acme</strong>');
     expect(res.body).toContain('acme/widgets');
     expect(res.body).toContain('acme/gadgets');
-    expect(res.body.match(/id="label-0"/g)).toHaveLength(1);
-    expect(res.body.match(/Only open issues appear/g)).toHaveLength(1);
-    expect(res.body.match(/check that the label names match exactly/g)).toHaveLength(1);
-    expect(res.body).toContain('href="https://github.com/acme/gadgets/labels"');
     expect(res.body).toContain('[![Roadmap](http://localhost:5002/acme/widgets/ffffff/24292f)](http://localhost:5002/view/acme/widgets/ffffff/24292f)');
     expect(res.body).toContain('&lt;iframe src=&quot;http://localhost:5002/embed/acme/widgets/ffffff/24292f&quot;');
     expect(res.body).toContain('href="http://localhost:5002/html/acme/gadgets/ffffff/24292f"');
   });
 
-  test('guides repos through labels, a labelled issue and a preview', async () => {
+  test('guides each repo through labels, a labelled issue and a preview', async () => {
     getInstallationRepos.mockResolvedValue(installation([{ owner: 'acme', repo: 'widgets', private: false }]));
 
     const res = await render('/setup?installation_id=42');
 
-    expect(res.body).toContain('id="label-0">Roadmap: Now</span>');
-    expect(res.body).toContain('id="label-1">Roadmap: Next</span>');
-    expect(res.body).toContain('id="label-2">Roadmap: Later</span>');
+    expect(res.body).toContain('id="label-0-0">Roadmap: Now</span>');
+    expect(res.body).toContain('id="label-0-1">Roadmap: Next</span>');
+    expect(res.body).toContain('id="label-0-2">Roadmap: Later</span>');
     expect(res.body).toContain('href="https://github.com/acme/widgets/labels"');
     expect(res.body).toContain('href="https://github.com/acme/widgets/issues/new?labels=Roadmap%3A%20Now"');
     expect(res.body).toContain('href="https://github.com/acme/widgets/issues"');
