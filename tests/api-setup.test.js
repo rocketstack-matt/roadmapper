@@ -52,6 +52,39 @@ describe('api/setup', () => {
     expect(res.body).toContain('href="http://localhost:5002/html/acme/gadgets/ffffff/24292f"');
   });
 
+  test('guides each repo through labels, a labelled issue and a preview', async () => {
+    getInstallationRepos.mockResolvedValue(installation([{ owner: 'acme', repo: 'widgets', private: false }]));
+
+    const res = await render('/setup?installation_id=42');
+
+    expect(res.body).toContain('id="label-0-0">Roadmap: Now</span>');
+    expect(res.body).toContain('id="label-0-1">Roadmap: Next</span>');
+    expect(res.body).toContain('id="label-0-2">Roadmap: Later</span>');
+    expect(res.body).toContain('href="https://github.com/acme/widgets/labels"');
+    expect(res.body).toContain('href="https://github.com/acme/widgets/issues/new?labels=Roadmap%3A%20Now"');
+    expect(res.body).toContain('href="https://github.com/acme/widgets/issues"');
+    expect(res.body).toContain('check that the label names match exactly');
+  });
+
+  test('free installs are told an empty preview can take up to an hour to fill', async () => {
+    getInstallationRepos.mockResolvedValue(installation([{ owner: 'acme', repo: 'widgets', private: false }]));
+
+    const res = await render('/setup?installation_id=42');
+
+    expect(res.body).toContain('it can take up to an hour to appear');
+  });
+
+  test('paid installs are told to reload the preview', async () => {
+    process.env.GITHUB_APP_WEBHOOK_SECRET = 'secret';
+    getInstallationTier.mockResolvedValue('paid');
+    getInstallationRepos.mockResolvedValue(installation([{ owner: 'acme', repo: 'widgets', private: false }]));
+
+    const res = await render('/setup?installation_id=42');
+
+    expect(res.body).toContain('Label changes show within seconds; reload the preview.');
+    expect(res.body).not.toContain('up to an hour');
+  });
+
   test('uses https for non-localhost hosts', async () => {
     getInstallationRepos.mockResolvedValue(installation([{ owner: 'acme', repo: 'widgets', private: false }]));
     const res = createMockRes();

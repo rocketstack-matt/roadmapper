@@ -11,6 +11,14 @@ const {
 
 const DEFAULT_COLORS = 'ffffff/24292f';
 
+// The column labels a repo needs, with the colours the README suggests.
+// Names must match exactly: the renderer compares them case-sensitively.
+const LABEL_GUIDE = [
+  { name: 'Roadmap: Now', color: '2da44e', meaning: 'being worked on now' },
+  { name: 'Roadmap: Next', color: 'fb8500', meaning: 'planned next' },
+  { name: 'Roadmap: Later', color: '8b949e', meaning: 'longer term' },
+];
+
 const page = (title, body) => `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -53,6 +61,14 @@ const page = (title, body) => `<!DOCTYPE html>
     code { flex: 1; display: block; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; padding: 10px 12px; font-size: 13px; white-space: pre-wrap; word-break: break-all; }
     .copy-btn { background: linear-gradient(135deg, var(--accent-blue), var(--accent-teal)); color: white; border: none; border-radius: 6px; padding: 8px 14px; cursor: pointer; font-size: 13px; font-weight: 600; }
     .links { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; font-size: 14px; }
+    .steps { list-style: none; counter-reset: step; }
+    .steps > li { counter-increment: step; position: relative; padding-left: 36px; margin-top: 20px; }
+    .steps > li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 24px; height: 24px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-blue), var(--accent-teal)); color: white; font-size: 13px; font-weight: 700; text-align: center; line-height: 24px; }
+    .steps h3 { font-size: 15px; margin-bottom: 4px; }
+    .hint { color: var(--text-secondary); font-size: 14px; }
+    .label-row { display: flex; gap: 12px; align-items: center; margin-top: 8px; font-size: 14px; }
+    .chip { display: inline-block; padding: 2px 10px; border-radius: 12px; color: white; font-size: 12px; font-weight: 600; white-space: nowrap; }
+    .label-row .copy-btn { padding: 4px 10px; font-size: 12px; }
     a { color: var(--accent-blue); }
   </style>
 </head>
@@ -96,26 +112,54 @@ const send = (res, status, title, body) => {
 const message = (res, status, title, text) => send(res, status, title,
   `<h1>${escapeXml(title)}</h1><p class="lead">${text}</p><p><a href="/">Back to Roadmapper</a></p>`);
 
-const repoCard = (baseUrl, { owner, repo }, index) => {
+const repoCard = (baseUrl, { owner, repo }, index, freshness) => {
   const path = `${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
+  const github = `https://github.com/${path}`;
   const image = `${baseUrl}/${path}/${DEFAULT_COLORS}`;
   const view = `${baseUrl}/view/${path}/${DEFAULT_COLORS}`;
   const embed = `${baseUrl}/embed/${path}/${DEFAULT_COLORS}`;
   const markdown = `[![Roadmap](${image})](${view})`;
   const iframe = `<iframe src="${embed}" width="100%" height="520" frameborder="0"></iframe>`;
+  const labels = LABEL_GUIDE.map((label, i) => `
+          <div class="label-row"><span class="chip" style="background: #${label.color}" id="label-${index}-${i}">${escapeXml(label.name)}</span><button class="copy-btn" onclick="copyCode('label-${index}-${i}', this)">Copy</button><span class="hint">#${label.color} · ${label.meaning}</span></div>`).join('');
+  const newIssue = `${github}/issues/new?labels=${encodeURIComponent(LABEL_GUIDE[0].name)}`;
   return `
     <div class="repo">
       <h2>${escapeXml(`${owner}/${repo}`)}</h2>
-      <div class="label">GitHub README (Markdown)</div>
-      <div class="code-row"><code id="md-${index}">${escapeXml(markdown)}</code><button class="copy-btn" onclick="copyCode('md-${index}', this)">Copy</button></div>
-      <div class="label">Website (iframe)</div>
-      <div class="code-row"><code id="iframe-${index}">${escapeXml(iframe)}</code><button class="copy-btn" onclick="copyCode('iframe-${index}', this)">Copy</button></div>
-      <div class="links">
-        <a href="${escapeXml(image)}" target="_blank">SVG image</a>
-        <a href="${escapeXml(view)}" target="_blank">Interactive viewer</a>
-        <a href="${escapeXml(embed)}" target="_blank">Embed page</a>
-        <a href="${escapeXml(`${baseUrl}/html/${path}/${DEFAULT_COLORS}`)}" target="_blank">HTML image map</a>
-      </div>
+      <ol class="steps">
+        <li>
+          <h3>Create the roadmap labels</h3>
+          <p class="hint">Use these exact names; each label's colour becomes the accent on its cards. Skip any the repo already has.</p>
+          ${labels}
+          <div class="links"><a href="${escapeXml(`${github}/labels`)}" target="_blank">Open labels on GitHub</a></div>
+        </li>
+        <li>
+          <h3>Label an open issue</h3>
+          <p class="hint">Add one of the labels to each issue you want on the roadmap. Only open issues appear; pull requests are ignored.</p>
+          <div class="links">
+            <a href="${escapeXml(newIssue)}" target="_blank">New issue labelled Roadmap: Now</a>
+            <a href="${escapeXml(`${github}/issues`)}" target="_blank">Label an existing issue</a>
+          </div>
+        </li>
+        <li>
+          <h3>Preview your roadmap</h3>
+          <p class="hint">${freshness}</p>
+          <div class="links"><a href="${escapeXml(view)}" target="_blank">Open the preview</a></div>
+        </li>
+        <li>
+          <h3>Embed it</h3>
+          <div class="label">GitHub README (Markdown)</div>
+          <div class="code-row"><code id="md-${index}">${escapeXml(markdown)}</code><button class="copy-btn" onclick="copyCode('md-${index}', this)">Copy</button></div>
+          <div class="label">Website (iframe)</div>
+          <div class="code-row"><code id="iframe-${index}">${escapeXml(iframe)}</code><button class="copy-btn" onclick="copyCode('iframe-${index}', this)">Copy</button></div>
+          <div class="links">
+            <a href="${escapeXml(image)}" target="_blank">SVG image</a>
+            <a href="${escapeXml(view)}" target="_blank">Interactive viewer</a>
+            <a href="${escapeXml(embed)}" target="_blank">Embed page</a>
+            <a href="${escapeXml(`${baseUrl}/html/${path}/${DEFAULT_COLORS}`)}" target="_blank">HTML image map</a>
+          </div>
+        </li>
+      </ol>
     </div>`;
 };
 
@@ -171,13 +215,21 @@ const handler = async (req, res) => {
   const privateNotice = privateCount
     ? `<div class="notice">${privateCount} private ${privateCount === 1 ? 'repository is' : 'repositories are'} not shown: Roadmapper only serves public repositories for now.</div>`
     : '';
+  // A free repo's empty roadmap stays cached for its hourly soft TTL, so say
+  // so rather than let a preview opened before labelling look broken.
+  const emptyHint = 'If the roadmap is empty, check that the label names match exactly.';
+  const freshness = tier !== 'paid'
+    ? `${emptyHint} Free roadmaps refresh hourly, so if you opened the preview before labelling an issue it can take up to an hour to appear.`
+    : isWebhookConfigured()
+      ? `${emptyHint} Label changes show within seconds; reload the preview.`
+      : `${emptyHint} Roadmaps refresh every ${TIERS.paid.cacheTtl} seconds; reload the preview.`;
   const repos = publicRepos.length
-    ? publicRepos.map((r, i) => repoCard(baseUrl, r, i)).join('')
-    : '<div class="notice">No public repositories are connected yet. Add one from the App\'s settings on GitHub and refresh this page.</div>';
+    ? publicRepos.map((r, i) => repoCard(baseUrl, r, i, freshness)).join('')
+    : '<div class="notice">No public repositories are connected yet. <a href="https://github.com/settings/installations" target="_blank">Add one in the App\'s settings on GitHub</a> and refresh this page.</div>';
 
   send(res, 200, 'GitHub App installed', `
     <h1>Roadmapper is installed</h1>
-    <p class="lead">The GitHub App is connected${account}. There's no file to commit: label issues with <strong>Roadmap: Now</strong>, <strong>Roadmap: Next</strong> or <strong>Roadmap: Later</strong> and embed your roadmap with the URLs below.</p>
+    <p class="lead">The GitHub App is connected${account}. There's no file to commit: follow the steps below to label your first issue, preview the roadmap and add it to your README.</p>
     <div class="notice">${tierNotice}</div>
     ${privateNotice}
     ${repos}`);
