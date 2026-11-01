@@ -18,7 +18,7 @@ const PRIVACY = {
     <h3>When you register for an API key</h3>
     <ul>
       <li>The repository owner and name you enter, and your email address.</li>
-      <li>A one-way hash of your API key (we never store the key itself) and the date you registered.</li>
+      <li>A one-way hash of your API key and the date you registered. Until you confirm your email address, we also hold the key itself for up to 24 hours so we can show it to you after you confirm; it is deleted when you confirm or when the confirmation link expires.</li>
     </ul>
     <h3>When you install the GitHub App</h3>
     <ul>
