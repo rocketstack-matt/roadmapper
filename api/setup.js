@@ -2,6 +2,7 @@ const { withMiddleware } = require('../lib/middleware');
 const { gaSnippet } = require('../lib/analytics');
 const { escapeXml } = require('../roadmap');
 const { TIERS } = require('../lib/tiers');
+const { getMarketplaceUrl } = require('../lib/marketplace');
 const {
   isAppConfigured,
   isWebhookConfigured,
@@ -216,9 +217,13 @@ const handler = async (req, res) => {
   const paidNotice = isWebhookConfigured()
     ? '<strong>Paid plan:</strong> roadmaps update within seconds of an issue changing.'
     : `<strong>Paid plan:</strong> roadmaps refresh every ${TIERS.paid.cacheTtl} seconds.`;
+  const marketplaceUrl = getMarketplaceUrl();
+  const upgrade = marketplaceUrl
+    ? `<a href="${escapeXml(marketplaceUrl)}" target="_blank">upgrade on GitHub Marketplace</a>`
+    : '<a href="https://github.com/rocketstack-matt/roadmapper/issues" target="_blank">get in touch</a> to upgrade';
   const tierNotice = tier === 'paid'
     ? paidNotice
-    : '<strong>Free plan:</strong> roadmaps refresh hourly. The paid plan updates them within seconds of an issue changing — <a href="https://github.com/rocketstack-matt/roadmapper/issues" target="_blank">get in touch</a> to upgrade.';
+    : `<strong>Free plan:</strong> roadmaps refresh hourly. The paid plan updates them within seconds of an issue changing — ${upgrade}.`;
   const privateNotice = privateCount
     ? `<div class="notice">${privateCount} private ${privateCount === 1 ? 'repository is' : 'repositories are'} not shown: Roadmapper only serves public repositories for now.</div>`
     : '';

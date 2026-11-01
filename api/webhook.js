@@ -2,8 +2,11 @@ const crypto = require('crypto');
 const { ROADMAP_LABELS } = require('../roadmap');
 const { invalidateIssues } = require('../lib/cache');
 const { getCachedVerification } = require('../lib/verify');
+const { applyPurchaseEvent } = require('../lib/marketplace');
 const {
   getInstallationTier,
+  getAccountInstallations,
+  clearInstallationVerifications,
   forgetRepo,
   addInstallationRepos,
   removeInstallationRepos,
@@ -146,12 +149,29 @@ const handleLabel = async (payload) => {
   return invalidateIfPaid(payload, [payload.repository.full_name]);
 };
 
+/**
+ * A GitHub Marketplace plan was bought, changed or cancelled (or a change at
+ * the end of the billing cycle was scheduled or withdrawn). The plan is
+ * recorded on the account; every installation of that account is then
+ * re-verified so its repos pick up the plan's tier on their next request.
+ */
+const handleMarketplacePurchase = async (payload) => {
+  const applied = await applyPurchaseEvent(payload);
+  if (!applied) return 'ignored';
+  if (!applied.changed) return 'updated';
+  for (const installationId of await getAccountInstallations(applied.account)) {
+    await clearInstallationVerifications(installationId);
+  }
+  return 'updated';
+};
+
 const EVENT_HANDLERS = {
   installation: handleInstallation,
   installation_repositories: handleInstallationRepositories,
   repository: handleRepository,
   issues: handleIssues,
   label: handleLabel,
+  marketplace_purchase: handleMarketplacePurchase,
 };
 
 const handler = async (req, res) => {

@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * Update a repo's or a GitHub App installation's tier in Redis. Billing is
- * direct (Stripe/invoice) for now, so this is how an install is made paid.
+ * Update a repo's or a GitHub App installation's manual tier in Redis. GitHub
+ * Marketplace purchases set an installation's tier on their own (see
+ * lib/marketplace.js); this is for direct deals and API-key repos. An
+ * installation gets the higher of the two, so setting "free" here doesn't
+ * cancel a Marketplace plan.
  *
  * For a repo with the GitHub App installed this sets the tier of the whole
  * installation (every repo it covers), and of its API key if one is
@@ -28,7 +31,13 @@
 
 require('dotenv').config();
 const redis = require('../lib/redis');
-const { isAppConfigured, getInstallationId, setInstallationTier, NOT_INSTALLED } = require('../lib/github-app');
+const {
+  isAppConfigured,
+  getInstallationId,
+  getInstallationTier,
+  setInstallationTier,
+  NOT_INSTALLED,
+} = require('../lib/github-app');
 const { repoSlug } = require('../lib/repo-slug');
 const { getRepoKeyHash } = require('../lib/keys');
 
@@ -81,6 +90,10 @@ const main = async (args) => {
     const repos = await setInstallationTier(installationId, tier);
     console.log(`Updated installation:${installationId} → tier: ${tier}`);
     if (repos.length) console.log(`Cleared verification cache for ${repos.join(', ')}`);
+    const effective = await getInstallationTier(installationId);
+    if (effective !== tier) {
+      console.log(`Installation ${installationId} stays on "${effective}": its account has a GitHub Marketplace plan.`);
+    }
   };
 
   if (byInstallation) {

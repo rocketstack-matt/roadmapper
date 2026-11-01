@@ -173,6 +173,17 @@ describe('api/setup', () => {
     expect(res.body).not.toContain('Paid plan:');
   });
 
+  test('free installs are sent to the Marketplace listing once plans are set up', async () => {
+    process.env.GITHUB_APP_SLUG = 'roadmapper';
+    process.env.GITHUB_MARKETPLACE_PLANS = '{"9001":"paid"}';
+    getInstallationRepos.mockResolvedValue(installation([]));
+
+    const res = await render('/setup?installation_id=42');
+
+    expect(res.body).toContain('<a href="https://github.com/marketplace/roadmapper" target="_blank">upgrade on GitHub Marketplace</a>');
+    expect(res.body).not.toContain('get in touch');
+  });
+
   test('escapes names from GitHub', async () => {
     getInstallationRepos.mockResolvedValue(installation([{ owner: 'acme', repo: '<b>x</b>', private: false }], '<i>acme</i>'));
 

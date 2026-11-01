@@ -25,6 +25,11 @@ const PRIVACY = {
       <li>The installation's ID and account name, the names of the repositories it covers and whether each is public, and the installation's plan.</li>
       <li>The webhook events GitHub sends us when installations, repositories, issues or labels change. We use them to keep roadmaps up to date and don't keep the event contents.</li>
     </ul>
+    <h3>When you buy a plan on GitHub Marketplace</h3>
+    <ul>
+      <li>GitHub tells us the ID and name of the user or organization account, the plan, whether it's on a free trial, and when a purchase, change or cancellation takes effect. We keep these to apply the plan to the account's installations.</li>
+      <li>GitHub takes the payment: we never see your card or payment details, and we don't keep the billing email address GitHub sends with a purchase.</li>
+    </ul>
     <h3>When a roadmap is shown</h3>
     <ul>
       <li>For the public repository shown: the number, title, link and labels of open issues that carry a <code>Roadmap</code> label. We keep a copy so we don't fetch it from GitHub on every view. Roadmapper only reads public repositories and refuses private ones.</li>
@@ -50,7 +55,7 @@ const PRIVACY = {
     <h2>Who we share it with</h2>
     <p>We don't sell your data. We share it only with the providers that run the service for us:</p>
     <ul>
-      <li><strong>GitHub</strong>, where we read repositories and issues.</li>
+      <li><strong>GitHub</strong>, where we read repositories and issues, and which sells and bills paid plans on GitHub Marketplace.</li>
       <li><strong>Vercel</strong>, which hosts the service.</li>
       <li><strong>Upstash</strong>, which stores registrations, installation records, cached roadmaps and rate limit counters.</li>
       <li><strong>Resend</strong>, which sends confirmation emails.</li>
@@ -62,6 +67,7 @@ const PRIVACY = {
     <ul>
       <li><strong>Registrations</strong> are kept until you ask us to delete them. An unconfirmed registration expires after 24 hours.</li>
       <li><strong>Installation records</strong> are deleted when you uninstall the GitHub App.</li>
+      <li><strong>Marketplace purchase records</strong> are kept while you have a plan and afterwards for as long as we need them for our billing and accounting records.</li>
       <li><strong>Cached roadmap data</strong> is replaced as the repository's issues change, and deleted on request.</li>
       <li><strong>Rate limit counters</strong> expire after about an hour.</li>
       <li><strong>Logs and analytics</strong> are kept for the periods set by Vercel and Google Analytics.</li>
@@ -101,7 +107,7 @@ const TERMS = {
     <p>The App asks for read-only access to issues, contents and metadata. It never writes to your repositories. You can remove it at any time from your GitHub settings, which stops the service for those repositories.</p>
 
     <h2>Plans and fees</h2>
-    <p>The free plan costs nothing. The paid plan is billed as agreed with you when you upgrade. We may change plans, features and limits, and we'll give paid customers reasonable notice of changes that affect what they pay for.</p>
+    <p>The free plan costs nothing. Paid plans for the GitHub App are bought on GitHub Marketplace, at the price shown on the listing: GitHub bills you and takes payment under its own terms. You can change or cancel your plan in GitHub's billing settings; a downgrade or cancellation takes effect at the end of the billing period you've paid for, and the paid plan continues until then. A paid plan arranged with us directly is billed as agreed with you. We may change plans, features and limits, and we'll give paid customers reasonable notice of changes that affect what they pay for.</p>
 
     <h2>Availability</h2>
     <p>We aim to keep the service running, but we don't guarantee that it will always be available, error-free or up to date. We may change, suspend or discontinue it, or any part of it.</p>

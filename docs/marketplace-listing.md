@@ -32,3 +32,16 @@ Add a **Roadmap: Now**, **Roadmap: Next** or **Roadmap: Later** label to an issu
 
 - **Privacy policy URL:** https://roadmapper.rocketstack.co/privacy
 - **Terms of service URL:** https://roadmapper.rocketstack.co/terms
+
+## Paid plan setup
+
+Roadmapper reads the plan from the `marketplace_purchase` webhook (`lib/marketplace.js`). To turn on paid plans:
+
+1. **Become a verified publisher.** Paid plans can only be listed by an app owned by an organization that is a verified publisher. Apply from the `rocket-stack` organization's settings (Developer settings → Publisher Verification). GitHub asks for complete organization profile information, two-factor authentication required for the organization, and a verified domain (for example `rocketstack.co`, with a DNS TXT record). Check GitHub's "Requirements for listing an app" page for the current conditions for paid listings, which have also included a minimum number of installations.
+2. **Set up payouts.** Complete the listing's payout (Stripe Connect) details so GitHub can pay you.
+3. **Subscribe the App to the Marketplace purchase event.** In the App's settings → Permissions & events → Subscribe to events, tick **Marketplace purchase**. Events go to the App's webhook URL (`https://roadmapper.rocketstack.co/api/webhook`) and are signed with `GITHUB_APP_WEBHOOK_SECRET`.
+4. **Create the plans** under the listing's Plans and pricing: keep a **Free** plan (price model "Free"), and add the **Paid** plan (flat rate, monthly and yearly prices, optionally a free trial). Leave both plans in draft until the listing is approved.
+5. **Map the plan id.** Note the paid plan's id (it's in the plan's edit URL and in the `marketplace_purchase` payload) and set `GITHUB_MARKETPLACE_PLANS` in Vercel to `{"<paid plan id>":"paid"}`, then redeploy. Any plan not listed, including Free, counts as free. Setting the variable also switches the setup page's upgrade link to the listing (`github.com/marketplace/<App slug>`; check it matches the listing URL).
+6. **Submit the listing for review.** GitHub reviews paid listings before they go live, and tests the purchase flow (including the webhook) as part of the review.
+
+Once live, a purchase, plan change or cancellation applies to every installation of the buying account. A cancellation or downgrade takes effect when GitHub sends it at the end of the billing cycle, and a free trial counts as paid. A tier set by hand with `scripts/set-tier.js` still applies: an installation gets whichever of the two is higher.

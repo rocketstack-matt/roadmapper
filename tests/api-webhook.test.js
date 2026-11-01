@@ -364,4 +364,150 @@ describe('api/webhook', () => {
         .toEqual({ result: 'ignored' });
     });
   });
+
+  describe('marketplace_purchase', () => {
+    const account = { type: 'Organization', id: 77, login: 'owner' };
+    const PAID_PLAN = { id: 9001, name: 'Paid' };
+    const purchase = (action, plan, effectiveDate, extra = {}) => ({
+      action,
+      effective_date: effectiveDate,
+      sender: { login: 'billing-admin' },
+      marketplace_purchase: { account, billing_cycle: 'monthly', on_free_trial: false, plan, ...extra },
+    });
+    // Installation 42 covers owner/repo; its account is linked to the plan
+    const linkInstallation = (id = 42, repos = ['owner/repo'], tier = 'free') => {
+      mockStore.set(`installation:${id}`, { account: 'owner', accountId: '77', repos: JSON.stringify(repos), tier });
+      const ids = JSON.parse(mockStore.get('account-installations:77') || '[]');
+      mockStore.set('account-installations:77', JSON.stringify([...ids, String(id)]));
+    };
+    const verified = (fullName) => {
+      mockStore.set(`repo:${fullName}`, { tier: 'free', source: 'app', verifiedAt: '1' });
+      mockStore.set(`repo-ttl:${fullName}`, '1');
+    };
+    const { getInstallationTier } = require('../lib/github-app');
+
+    beforeEach(() => {
+      process.env.GITHUB_MARKETPLACE_PLANS = '{"9001":"paid"}';
+    });
+
+    test('rejects an unsigned or wrongly signed purchase', async () => {
+      const payload = purchase('purchased', PAID_PLAN, '2026-11-01T00:00:00+00:00');
+      expect((await send('marketplace_purchase', payload, { signature: '' })).statusCode).toBe(401);
+      expect((await send('marketplace_purchase', payload, { signature: sign(JSON.stringify(payload), 'other') })).statusCode).toBe(401);
+      expect(mockStore.has('marketplace:77')).toBe(false);
+    });
+
+    test('purchased makes the installation paid and re-verifies its repos', async () => {
+      linkInstallation();
+      verified('owner/repo');
+
+      const res = await send('marketplace_purchase', purchase('purchased', PAID_PLAN, '2026-11-01T00:00:00+00:00'));
+
+      expect(res.body).toEqual({ result: 'updated' });
+      expect(await getInstallationTier(42)).toBe('paid');
+      expect(mockStore.has('repo:owner/repo')).toBe(false);
+      expect(mockStore.has('repo-ttl:owner/repo')).toBe(false);
+    });
+
+    test('a free trial is paid, and cancelling it drops to free', async () => {
+      linkInstallation();
+      await send('marketplace_purchase', purchase('purchased', PAID_PLAN, '2026-11-01T00:00:00+00:00', { on_free_trial: true }));
+      expect(await getInstallationTier(42)).toBe('paid');
+
+      verified('owner/repo');
+      await send('marketplace_purchase', purchase('cancelled', PAID_PLAN, '2026-11-05T00:00:00+00:00', { on_free_trial: true }));
+      expect(await getInstallationTier(42)).toBe('free');
+      expect(mockStore.has('repo:owner/repo')).toBe(false);
+    });
+
+    test('changed applies the new plan', async () => {
+      linkInstallation();
+      await send('marketplace_purchase', purchase('purchased', { id: 9000, name: 'Free' }, '2026-11-01T00:00:00+00:00'));
+      expect(await getInstallationTier(42)).toBe('free');
+      await send('marketplace_purchase', purchase('changed', PAID_PLAN, '2026-11-02T00:00:00+00:00'));
+      expect(await getInstallationTier(42)).toBe('paid');
+    });
+
+    test('a pending change or cancellation keeps paid until the billing cycle ends', async () => {
+      linkInstallation();
+      await send('marketplace_purchase', purchase('purchased', PAID_PLAN, '2026-11-01T00:00:00+00:00'));
+      verified('owner/repo');
+
+      const pending = await send('marketplace_purchase', purchase('pending_change', { id: 9000, name: 'Free' }, '2026-12-01T00:00:00+00:00'));
+      expect(pending.body).toEqual({ result: 'updated' });
+      expect(await getInstallationTier(42)).toBe('paid');
+      // Nothing changed yet, so the cached verification stands
+      expect(mockStore.has('repo:owner/repo')).toBe(true);
+
+      await send('marketplace_purchase', purchase('pending_change_cancelled', PAID_PLAN, '2026-12-01T00:00:00+00:00'));
+      expect(await getInstallationTier(42)).toBe('paid');
+
+      await send('marketplace_purchase', purchase('cancelled', PAID_PLAN, '2026-12-01T00:00:00+00:00'));
+      expect(await getInstallationTier(42)).toBe('free');
+    });
+
+    test('an out-of-order purchase cannot re-grant a cancelled plan', async () => {
+      linkInstallation();
+      await send('marketplace_purchase', purchase('cancelled', PAID_PLAN, '2026-12-01T00:00:00+00:00'));
+      await send('marketplace_purchase', purchase('purchased', PAID_PLAN, '2026-11-01T00:00:00+00:00'));
+      expect(await getInstallationTier(42)).toBe('free');
+    });
+
+    test('an unknown plan is free', async () => {
+      linkInstallation();
+      const res = await send('marketplace_purchase', purchase('purchased', { id: 1234, name: 'Enterprise' }, '2026-11-01T00:00:00+00:00'));
+      expect(res.body).toEqual({ result: 'updated' });
+      expect(await getInstallationTier(42)).toBe('free');
+    });
+
+    test('applies to every installation of the account', async () => {
+      linkInstallation(42, ['owner/repo']);
+      linkInstallation(43, ['owner/other']);
+      verified('owner/repo');
+      verified('owner/other');
+
+      await send('marketplace_purchase', purchase('purchased', PAID_PLAN, '2026-11-01T00:00:00+00:00'));
+
+      expect(await getInstallationTier(42)).toBe('paid');
+      expect(await getInstallationTier(43)).toBe('paid');
+      expect(mockStore.has('repo:owner/repo')).toBe(false);
+      expect(mockStore.has('repo:owner/other')).toBe(false);
+    });
+
+    test('a purchase before the install applies once the install is seen', async () => {
+      await send('marketplace_purchase', purchase('purchased', PAID_PLAN, '2026-11-01T00:00:00+00:00'));
+      await send('installation', {
+        action: 'created',
+        installation: { id: 42, account: { login: 'owner', id: 77 } },
+        repositories: [repository],
+      });
+      expect(await getInstallationTier(42)).toBe('paid');
+    });
+
+    test('a manual paid tier survives a Marketplace cancellation', async () => {
+      linkInstallation(42, ['owner/repo'], 'paid');
+      await send('marketplace_purchase', purchase('purchased', PAID_PLAN, '2026-11-01T00:00:00+00:00'));
+      await send('marketplace_purchase', purchase('cancelled', PAID_PLAN, '2026-12-01T00:00:00+00:00'));
+      expect(await getInstallationTier(42)).toBe('paid');
+    });
+
+    test('a manual free tier does not cancel a Marketplace plan', async () => {
+      linkInstallation(42, ['owner/repo'], 'free');
+      await send('marketplace_purchase', purchase('purchased', PAID_PLAN, '2026-11-01T00:00:00+00:00'));
+      expect(await getInstallationTier(42)).toBe('paid');
+    });
+
+    test('a Marketplace-paid installation is webhook-driven for issue events', async () => {
+      linkInstallation();
+      await send('marketplace_purchase', purchase('purchased', PAID_PLAN, '2026-11-01T00:00:00+00:00'));
+      cacheIssues();
+      const res = await send('issues', issuePayload('labeled', [roadmapLabel], { label: roadmapLabel }));
+      expect(res.body).toEqual({ result: 'invalidated' });
+    });
+
+    test('ignores a payload without a purchase', async () => {
+      const res = await send('marketplace_purchase', { action: 'purchased' });
+      expect(res.body).toEqual({ result: 'ignored' });
+    });
+  });
 });

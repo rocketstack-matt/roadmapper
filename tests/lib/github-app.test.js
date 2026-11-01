@@ -25,6 +25,7 @@ const {
   getInstallationToken,
   getInstallationTier,
   setInstallationTier,
+  getAccountInstallations,
   getInstallationRepos,
   getAppInstallUrl,
   getGitHubHeaders,
@@ -242,6 +243,86 @@ describe('lib/github-app', () => {
     test('an unknown tier counts as free', async () => {
       mockStore.set('installation:42', { tier: 'platinum' });
       expect(await getInstallationTier('42')).toBe('free');
+    });
+
+    describe('with a GitHub Marketplace plan', () => {
+      beforeEach(() => {
+        process.env.GITHUB_MARKETPLACE_PLANS = '{"9001":"paid"}';
+        mockStore.set('marketplace:77', { account: 'owner', planId: '9001', planName: 'Paid' });
+      });
+
+      test("uses the account's plan", async () => {
+        mockStore.set('installation:42', { accountId: '77', tier: 'free' });
+        expect(await getInstallationTier('42')).toBe('paid');
+      });
+
+      test('ignores a plan the installation is not linked to', async () => {
+        mockStore.set('installation:42', { tier: 'free' });
+        expect(await getInstallationTier('42')).toBe('free');
+      });
+
+      test('a manual paid tier wins over a free or cancelled plan', async () => {
+        mockStore.set('marketplace:77', { account: 'owner', planId: '', planName: '' });
+        mockStore.set('installation:42', { accountId: '77', tier: 'paid' });
+        expect(await getInstallationTier('42')).toBe('paid');
+      });
+
+      test('setting the manual tier to free keeps a paid plan', async () => {
+        mockStore.set('installation:42', { accountId: '77', tier: 'paid', repos: '[]' });
+        await setInstallationTier('42', 'free');
+        expect(await getInstallationTier('42')).toBe('paid');
+      });
+    });
+  });
+
+  describe('account links', () => {
+    test('an installation lookup links the installation to its account', async () => {
+      axios.get.mockResolvedValue({ data: { id: 42, account: { login: 'owner', id: 77 } } });
+      await getInstallationId('owner', 'repo');
+
+      expect(mockStore.get('installation:42').accountId).toBe('77');
+      expect(mockStore.get('account-installations:77')).toBe('["42"]');
+    });
+
+    test('addInstallationRepos links the account, once', async () => {
+      const installation = { id: 42, account: { login: 'owner', id: 77 } };
+      await addInstallationRepos(installation, [{ full_name: 'owner/a', private: false }]);
+      await addInstallationRepos(installation, [{ full_name: 'owner/b', private: false }]);
+      expect(mockStore.get('account-installations:77')).toBe('["42"]');
+    });
+
+    test("getAccountInstallations looks up an organization's installation and links it", async () => {
+      mockStore.set('account-installations:77', '["41"]');
+      axios.get.mockResolvedValue({ data: { id: 42 } });
+
+      expect(await getAccountInstallations({ id: 77, login: 'acme', type: 'Organization' })).toEqual(['41', '42']);
+      expect(axios.get.mock.calls[0][0]).toBe('https://api.github.com/orgs/acme/installation');
+      expect(mockStore.get('installation:42').accountId).toBe('77');
+    });
+
+    test("getAccountInstallations looks up a user's installation", async () => {
+      axios.get.mockResolvedValue({ data: { id: 42 } });
+      expect(await getAccountInstallations({ id: 77, login: 'someone', type: 'User' })).toEqual(['42']);
+      expect(axios.get.mock.calls[0][0]).toBe('https://api.github.com/users/someone/installation');
+    });
+
+    test('getAccountInstallations keeps the linked installations when the lookup fails', async () => {
+      const error = jest.spyOn(console, 'error').mockImplementation(() => {});
+      mockStore.set('account-installations:77', '["41"]');
+      axios.get.mockRejectedValueOnce(notFound());
+      expect(await getAccountInstallations({ id: 77, login: 'acme', type: 'Organization' })).toEqual(['41']);
+      expect(error).not.toHaveBeenCalled();
+
+      axios.get.mockRejectedValueOnce(new Error('boom'));
+      expect(await getAccountInstallations({ id: 77, login: 'acme', type: 'Organization' })).toEqual(['41']);
+      expect(error).toHaveBeenCalled();
+      error.mockRestore();
+    });
+
+    test('getAccountInstallations makes no lookup without the App', async () => {
+      delete process.env.GITHUB_APP_ID;
+      expect(await getAccountInstallations({ id: 77, login: 'acme', type: 'Organization' })).toEqual([]);
+      expect(axios.get).not.toHaveBeenCalled();
     });
   });
 
