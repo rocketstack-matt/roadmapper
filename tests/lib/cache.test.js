@@ -120,6 +120,28 @@ describe('lib/cache', () => {
       expect(parsed.cachedAt).toBe(1000);
     });
 
+    test('removes pre-change issues when invalidation lands between marker read and cache write', async () => {
+      const stored = new Map();
+      redis.get.mockImplementationOnce(async key => stored.get(key) ?? null)
+        .mockImplementationOnce(async key => stored.get(key) ?? null)
+        .mockImplementationOnce(async key => stored.get(key) ?? null);
+      redis.del.mockImplementationOnce(async key => stored.delete(key))
+        .mockImplementationOnce(async key => stored.delete(key));
+      redis.set.mockImplementationOnce(async (key, value) => {
+        // The initial marker GET has completed, but the cache SET hasn't.
+        await invalidateIssues('owner', 'repo');
+        stored.set(key, value);
+      }).mockImplementationOnce(async (key, value) => stored.set(key, value));
+
+      await cacheIssues('owner', 'repo', mockIssues, 900, null, Date.now() - 1000);
+
+      expect(redis.get.mock.calls.slice(0, 2)).toEqual([
+        ['cache:invalidated:owner/repo'],
+        ['cache:invalidated:owner/repo'],
+      ]);
+      expect(await getCachedIssues('owner', 'repo')).toBeNull();
+    });
+
     test('always stores (ttlSeconds no longer controls storage)', async () => {
       await cacheIssues('owner', 'repo', mockIssues, 0);
       expect(redis.set).toHaveBeenCalledTimes(1);
