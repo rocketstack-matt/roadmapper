@@ -27,7 +27,7 @@ const PRIVACY = {
     </ul>
     <h3>When you buy a plan on GitHub Marketplace</h3>
     <ul>
-      <li>GitHub tells us the ID and name of the user or organization account, the plan, whether it's on a free trial, and when a purchase, change or cancellation takes effect. We keep these to apply the plan to the account's installations.</li>
+      <li>GitHub tells us (when a plan changes, and when we check an account's plan with GitHub) the ID and name of the user or organization account, the plan, whether it's on a free trial, and when a purchase, change or cancellation takes effect. We keep these to apply the plan to the account's installations.</li>
       <li>GitHub takes the payment: we never see your card or payment details, and we don't keep the billing email address GitHub sends with a purchase.</li>
     </ul>
     <h3>When a roadmap is shown</h3>

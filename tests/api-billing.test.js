@@ -10,7 +10,11 @@ const mockStore = new Map();
 let mockBeforeHgetall = null;
 jest.mock('../lib/redis', () => ({
   get: jest.fn(async (key) => (mockStore.has(key) ? mockStore.get(key) : null)),
-  set: jest.fn(async (key, value) => { mockStore.set(key, value); return 'OK'; }),
+  set: jest.fn(async (key, value, options = {}) => {
+    if (options.nx && mockStore.has(key)) return null;
+    mockStore.set(key, value);
+    return 'OK';
+  }),
   del: jest.fn(async (key) => (mockStore.delete(key) ? 1 : 0)),
   hgetall: jest.fn(async (key) => {
     const value = mockStore.has(key) ? { ...mockStore.get(key) } : null;
@@ -54,6 +58,11 @@ const roadmapHandler = require('../api/roadmap');
 const webhookHandler = require('../api/webhook');
 // Whether GitHub answers GET /app/installations/42
 let accountLookupFails;
+// The account's purchase GitHub's Marketplace API reports
+// (GET /marketplace_listing/accounts/77): null is a 404, no purchase
+let mockListedPurchase;
+// Whether that lookup fails
+let marketplaceLookupFails;
 
 // The tier the roadmap request was served with
 const requestTier = async () => {
@@ -68,7 +77,16 @@ const requestTier = async () => {
   return tier;
 };
 
-const deliver = async (action, plan, effectiveDate) => {
+// A purchase event happens on GitHub: its Marketplace API reports it from
+// now on, whether or not the webhook arrives
+const missDelivery = (action, plan, effectiveDate) => {
+  mockListedPurchase = action === 'cancelled'
+    ? null
+    : { billing_cycle: 'monthly', on_free_trial: false, updated_at: effectiveDate, plan };
+};
+
+const deliver = async (action, plan, effectiveDate, deliveryId) => {
+  missDelivery(action, plan, effectiveDate);
   const body = JSON.stringify({
     action,
     effective_date: effectiveDate,
@@ -79,6 +97,7 @@ const deliver = async (action, plan, effectiveDate) => {
   req.url = '/api/webhook';
   req.headers = {
     'x-github-event': 'marketplace_purchase',
+    'x-github-delivery': deliveryId,
     'x-hub-signature-256': `sha256=${crypto.createHmac('sha256', SECRET).update(body).digest('hex')}`,
   };
   const res = { statusCode: 200, status(code) { res.statusCode = code; return res; }, json(b) { res.body = b; return res; } };
@@ -91,6 +110,8 @@ beforeEach(() => {
   mockStore.clear();
   mockBeforeHgetall = null;
   accountLookupFails = false;
+  mockListedPurchase = null;
+  marketplaceLookupFails = false;
   clearTokenCache();
   process.env = {
     ...originalEnv,
@@ -113,6 +134,10 @@ beforeEach(() => {
     if (url.endsWith('/app/installations/42')) {
       if (accountLookupFails) throw Object.assign(new Error('GitHub is down'), { response: { status: 502 } });
       return { data: { id: 42, account: ACCOUNT } };
+    }
+    if (url.endsWith('/marketplace_listing/accounts/77')) {
+      if (marketplaceLookupFails) throw Object.assign(new Error('GitHub is down'), { response: { status: 502 } });
+      if (mockListedPurchase) return { data: { id: 77, login: 'owner', marketplace_purchase: mockListedPurchase } };
     }
     if (url.endsWith('/orgs/owner/installation')) return { data: { id: 42, account: ACCOUNT } };
     if (url.endsWith('/repos/owner/repo')) return { data: { private: false } };
@@ -155,6 +180,47 @@ describe('billing changes on the next roadmap request', () => {
     };
 
     expect(await requestTier()).toBe('paid');
+    expect(await requestTier()).toBe('free');
+  });
+
+  test('a missed purchase webhook: the next request serves paid from GitHub\'s Marketplace API', async () => {
+    missDelivery('purchased', PAID_PLAN, '2026-11-01T00:00:00Z');
+    expect(await requestTier()).toBe('paid');
+    expect(mockStore.get('marketplace:77').planId).toBe('9001');
+    // Checked: the next requests read what was recorded
+    expect(await requestTier()).toBe('paid');
+    expect(axios.get.mock.calls.filter(([url]) => url.includes('/marketplace_listing/'))).toHaveLength(1);
+  });
+
+  test('a missed cancellation is noticed once the daily check comes round', async () => {
+    await deliver('purchased', PAID_PLAN, '2026-10-01T00:00:00Z');
+    expect(await requestTier()).toBe('paid');
+
+    missDelivery('cancelled', PAID_PLAN, '2026-10-31T00:00:00Z');
+    expect(await requestTier()).toBe('paid');
+    mockStore.delete('marketplace-checked:77'); // a day later
+    expect(await requestTier()).toBe('free');
+  });
+
+  test('a failed Marketplace lookup serves free, then is retried', async () => {
+    missDelivery('purchased', PAID_PLAN, '2026-11-01T00:00:00Z');
+    marketplaceLookupFails = true;
+    expect(await requestTier()).toBe('free');
+    expect(mockStore.has('marketplace:77')).toBe(false);
+
+    marketplaceLookupFails = false;
+    mockStore.delete('marketplace-checked:77'); // the minute-long hold expires
+    expect(await requestTier()).toBe('paid');
+  });
+
+  test('a redelivered purchase cannot re-grant a cancellation dated the same', async () => {
+    await deliver('purchased', PAID_PLAN, '2026-11-01T00:00:00Z', 'delivery-1');
+    await deliver('cancelled', PAID_PLAN, '2026-11-01T00:00:00Z', 'delivery-2');
+    expect(await requestTier()).toBe('free');
+
+    // Redelivered by hand from the App settings (same delivery id)
+    expect((await deliver('purchased', PAID_PLAN, '2026-11-01T00:00:00Z', 'delivery-1')).body).toEqual({ result: 'updated' });
+    mockListedPurchase = null; // GitHub still has it cancelled
     expect(await requestTier()).toBe('free');
   });
 
