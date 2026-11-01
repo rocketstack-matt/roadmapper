@@ -285,6 +285,23 @@ describe('lib/marketplace', () => {
       expect(redis.hset).not.toHaveBeenCalled();
     });
 
+    test('a record from before ranks existed keeps a cancellation, or a plan, against an equal-date event', async () => {
+      const at = String(Date.parse(DATE));
+      // As #46's script wrote them: no eventRank or eventDelivery
+      mockStore.set('marketplace:77', { account: 'acme', planId: '', planName: '', onFreeTrial: 'false', effectiveAt: at });
+      const late = await applyPurchaseEvent(purchaseEvent('purchased', PAID_PLAN, DATE), { deliveryId: 'z' });
+      expect(late).toMatchObject({ changed: false, current: false });
+      expect(await getMarketplaceTier('77')).toBe('free');
+
+      mockStore.set('marketplace:77', { account: 'acme', planId: '9001', planName: 'Paid', onFreeTrial: 'false', effectiveAt: at });
+      expect((await applyPurchaseEvent(purchaseEvent('changed', FREE_PLAN, DATE), { deliveryId: 'z' })).changed).toBe(false);
+      expect(await getMarketplaceTier('77')).toBe('paid');
+
+      // A later event still applies
+      await applyPurchaseEvent(purchaseEvent('cancelled', PAID_PLAN, '2026-12-02T00:00:00+00:00'));
+      expect(await getMarketplaceTier('77')).toBe('free');
+    });
+
     test('a pending change dated the same as the changed that carried it out is ignored', async () => {
       await applyPurchaseEvent(purchaseEvent('purchased', PAID_PLAN, '2026-11-01T00:00:00+00:00'));
       await applyPurchaseEvent(purchaseEvent('changed', FREE_PLAN, DATE), { deliveryId: 'a' });
@@ -353,6 +370,27 @@ describe('lib/marketplace', () => {
       mockStore.delete('marketplace-checked:77'); // a minute later
       lookup.mockResolvedValueOnce(listing(PAID_PLAN));
       expect(await getMarketplaceTier('77', lookup)).toBe('paid');
+      error.mockRestore();
+    });
+
+    test('a failed write after a successful lookup is held for a minute only', async () => {
+      const error = jest.spyOn(console, 'error').mockImplementation(() => {});
+      redis.eval.mockRejectedValueOnce(new Error('Redis timeout'));
+      expect(await getMarketplaceTier('77', async () => listing(PAID_PLAN))).toBe('free');
+      expect(mockStore.get('marketplace-checked:77')).toBe('checking');
+      expect(markerTtl()).toBe(60);
+
+      // A missed cancellation whose write fails
+      await applyPurchaseEvent(purchaseEvent('purchased', PAID_PLAN, new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString()));
+      mockStore.delete('marketplace-checked:77');
+      redis.set.mockClear();
+      redis.eval.mockRejectedValueOnce(new Error('Redis timeout'));
+      expect(await getMarketplaceTier('77', async () => null)).toBe('paid');
+      expect(mockStore.get('marketplace-checked:77')).toBe('checking');
+      expect(markerTtl()).toBe(60);
+
+      mockStore.delete('marketplace-checked:77'); // a minute later
+      expect(await getMarketplaceTier('77', async () => null)).toBe('free');
       error.mockRestore();
     });
 
