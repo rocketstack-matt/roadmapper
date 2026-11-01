@@ -141,6 +141,18 @@ describe('hexToRgba', () => {
 });
 
 describe('generateRoadmapSVG', () => {
+
+  test('shows the 60-minute cache notice by default', () => {
+    const svg = generateRoadmapSVG(mockIssues, 'ffffff', '24292f');
+    expect(svg).toContain('Roadmaps are cached for 60 minutes');
+  });
+
+  test('omits the cache notice without changing the height when showCacheNotice is false', () => {
+    const withNotice = generateRoadmapSVG(mockIssues, 'ffffff', '24292f');
+    const svg = generateRoadmapSVG(mockIssues, 'ffffff', '24292f', { showCacheNotice: false });
+    expect(svg).not.toContain('Roadmaps are cached for 60 minutes');
+    expect(svg.match(/viewBox="[^"]+"/)[0]).toBe(withNotice.match(/viewBox="[^"]+"/)[0]);
+  });
   test('returns a valid SVG string', () => {
     const svg = generateRoadmapSVG(mockIssues, 'ffffff', '24292f');
     expect(svg).toContain('<svg');
