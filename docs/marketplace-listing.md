@@ -17,7 +17,7 @@ Add a **Roadmap: Now**, **Roadmap: Next** or **Roadmap: Later** label to an issu
 
 ### Features
 
-- **Embed anywhere:** an image for your README, an iframe for your docs or an HTML image map, with every card linking to its issue
+- **Embed anywhere:** an image for your README that links to the full roadmap, or an iframe or HTML image map for your docs where every card links to its issue
 - **Your colours:** cards pick up your label colours, and the background and text colours are yours to set
 - **Groups:** label issues `Roadmap Group: <name>` to group them within a column
 - **Read-only:** Roadmapper only reads issues, works with public repositories and never writes to your repo
