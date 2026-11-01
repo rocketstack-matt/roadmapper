@@ -52,6 +52,15 @@ describe('api/setup', () => {
     expect(res.body).toContain('href="http://localhost:5002/html/acme/gadgets/ffffff/24292f"');
   });
 
+  test('keeps the wide logo at its own aspect ratio above the name', async () => {
+    getInstallationRepos.mockResolvedValue(installation([{ owner: 'acme', repo: 'widgets', private: false }]));
+
+    const res = await render('/setup?installation_id=42');
+
+    expect(res.body).toContain('<a class="logo" href="/"><img src="/logo.svg" alt=""><span>Roadmapper</span></a>');
+    expect(res.body).toContain('.logo img { height: 35px; width: auto; }');
+  });
+
   test('guides each repo through labels, a labelled issue and a preview', async () => {
     getInstallationRepos.mockResolvedValue(installation([{ owner: 'acme', repo: 'widgets', private: false }]));
 

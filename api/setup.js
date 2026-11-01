@@ -47,8 +47,9 @@ const page = (title, body) => `<!DOCTYPE html>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; line-height: 1.6; color: var(--text-primary); background: var(--bg-secondary); }
     .container { max-width: 860px; margin: 0 auto; padding: 32px 20px 64px; }
     header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
-    .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 700; font-size: 20px; background: linear-gradient(135deg, var(--accent-blue), var(--accent-teal), var(--accent-green)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-    .logo img { width: 36px; height: 36px; }
+    .logo { display: flex; flex-direction: column; align-items: center; gap: 8px; text-decoration: none; }
+    .logo img { height: 35px; width: auto; }
+    .logo span { font-size: 20px; font-weight: 600; background: linear-gradient(135deg, var(--accent-blue), var(--accent-teal), var(--accent-green)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
     .theme-toggle { background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 14px; }
     h1 { font-size: 28px; margin-bottom: 8px; }
     .lead { color: var(--text-secondary); margin-bottom: 24px; }
@@ -75,7 +76,7 @@ const page = (title, body) => `<!DOCTYPE html>
 <body>
   <div class="container">
     <header>
-      <a class="logo" href="/"><img src="/logo.svg" alt="">Roadmapper</a>
+      <a class="logo" href="/"><img src="/logo.svg" alt=""><span>Roadmapper</span></a>
       <button class="theme-toggle" onclick="toggleTheme()"><span id="theme-icon">🌙</span></button>
     </header>
     ${body}

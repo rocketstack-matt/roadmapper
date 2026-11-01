@@ -48,6 +48,10 @@
       "dest": "/public/logo.svg"
     },
     {
+      "src": "/logo-square.png",
+      "dest": "/public/logo-square.png"
+    },
+    {
       "src": "/rocketstack-matt.png",
       "dest": "/public/rocketstack-matt.png"
     },

@@ -485,6 +485,7 @@ Example: `http://localhost:5002/rocketstack-matt/roadmapper/ffffff/24292f`
 - `server.js`: Local Express server for development
 - `vercel.json`: Serverless deployment configuration
 - `public/logo.svg`: Roadmapper logo
+- `public/logo-square.png`: Square logo for the GitHub App
 - `public/rocketstack-matt.png`: Avatar image
 - `tests/`: Test suite directory (Jest)
 - `README.md`: User-facing documentation
@@ -629,7 +630,8 @@ The project uses CSS custom properties for theming:
 
 ### Branding
 
-- **Logo**: `/public/logo.svg` - Used across all pages
+- **Logo**: `/public/logo.svg` - Used across all pages. It is wide (900×190, the arrow only), so size it by height (`height: 35px; width: auto`), never into a square box
+- **Square logo**: `/public/logo-square.png` - 1024×1024 PNG (arrow above the "Roadmapper" wordmark on white), for the GitHub App's settings page and other square avatar slots
 - **Logo Layout**: Vertical (logo above "Roadmapper" text)
 - **Logo Text**: Gradient text using blue → teal → green
 - **Avatar**: `/public/rocketstack-matt.png` - Used in footer
@@ -682,7 +684,7 @@ Builds multiple serverless functions:
 - `api/confirm.js` - Email confirmation endpoint
 - `api/webhook.js` - GitHub App webhook endpoint
 - `api/setup.js` - GitHub App setup page
-- `public/**` - Static files (logo, avatar)
+- `public/**` - Static files (logos, avatar)
 
 ### Routes
 
@@ -697,6 +699,7 @@ The routing is simplified - users don't need to include `/api/` in URLs:
 - `/embed/:owner/:repo/:bgColor/:textColor` → `api/embed.js`
 - `/html/:owner/:repo/:bgColor/:textColor` → `api/html.js`
 - `/logo.svg` → `public/logo.svg`
+- `/logo-square.png` → `public/logo-square.png`
 - `/rocketstack-matt.png` → `public/rocketstack-matt.png`
 
 ### Custom Domain
