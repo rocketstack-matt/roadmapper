@@ -22,7 +22,7 @@ const PRIVACY = {
     </ul>
     <h3>When you install the GitHub App</h3>
     <ul>
-      <li>The installation's ID and account name, the names of the repositories it covers and whether each is public, and the installation's plan.</li>
+      <li>The installation's ID and account name, the names of the repositories it covers and whether each is public or private, and the installation's plan.</li>
       <li>The webhook events GitHub sends us when installations, repositories, issues or labels change. We use them to keep roadmaps up to date and don't keep the event contents.</li>
     </ul>
     <h3>When you buy a plan on GitHub Marketplace</h3>
@@ -32,7 +32,7 @@ const PRIVACY = {
     </ul>
     <h3>When a roadmap is shown</h3>
     <ul>
-      <li>For the public repository shown: the number, title, link and labels of open issues that carry a <code>Roadmap</code> label. We keep a copy so we don't fetch it from GitHub on every view. Roadmapper only reads public repositories and refuses private ones.</li>
+      <li>For the repository shown: the number, title, link and labels of open issues that carry a <code>Roadmap</code> label. We keep a copy so we don't fetch it from GitHub on every view. We don't read your code or any other issues; the only file we read is the <code>.roadmapper</code> file, if you use an API key.</li>
       <li>The IP address of the request, which we use to apply rate limits.</li>
       <li>Standard request logs (such as IP address, URL, time and browser user agent) kept by our hosting provider.</li>
     </ul>
@@ -42,6 +42,9 @@ const PRIVACY = {
       <li>When a roadmap image is viewed, we send Google Analytics an event with the repository shown and the viewer's IP address, so we can count views.</li>
     </ul>
     <p>We don't ask for or collect any other personal data, and the GitHub App has read-only access: it never writes to your repositories.</p>
+
+    <h3>Private repositories</h3>
+    <p>Roadmapper doesn't show private repositories yet: support for them is coming on plans that include it. This section describes how we will handle their data once it's available. We will read the same issue data from them as from public ones, using the access you grant the GitHub App. We will treat it as confidential: we will use it only to show your roadmap and won't share it with anyone except the providers below. When the App's access to the repository ends, we stop showing and refreshing our copy, and we delete it when you ask (see "How long we keep it").</p>
 
     <h2>How we use it</h2>
     <ul>
@@ -68,7 +71,7 @@ const PRIVACY = {
       <li><strong>Registrations</strong> are kept until you ask us to delete them. An unconfirmed registration expires after 24 hours.</li>
       <li><strong>Installation records</strong> are deleted when you uninstall the GitHub App.</li>
       <li><strong>Marketplace purchase records</strong> are kept while you have a plan and afterwards for as long as we need them for our billing and accounting records.</li>
-      <li><strong>Cached roadmap data</strong> is replaced as the repository's issues change, and deleted on request.</li>
+      <li><strong>Cached roadmap data</strong> is replaced as the repository's issues change. When the App's access to a repository ends, or its registration is removed, we stop showing and refreshing it. To have it deleted, email ${contact}.</li>
       <li><strong>Rate limit counters</strong> expire after about an hour.</li>
       <li><strong>Logs and analytics</strong> are kept for the periods set by Vercel and Google Analytics.</li>
     </ul>
@@ -89,7 +92,7 @@ const TERMS = {
     <p>These terms govern your use of Roadmapper (<a href="https://roadmapper.rocketstack.co">roadmapper.rocketstack.co</a>), including the website, the API key registration and the Roadmapper GitHub App (the "service"). The service is run by ${OPERATOR} ("we", "us"). By using it, you agree to these terms. If you use it on behalf of an organisation, you agree to them for that organisation.</p>
 
     <h2>The service</h2>
-    <p>Roadmapper reads the open issues of a public GitHub repository that carry <code>Roadmap</code> labels and shows them as a roadmap you can embed. To use it, a repository must have the Roadmapper GitHub App installed or be registered with an API key.</p>
+    <p>Roadmapper reads the open issues of a GitHub repository that carry <code>Roadmap</code> labels and shows them as a roadmap you can embed. To use it, a repository must have the Roadmapper GitHub App installed or be registered with an API key. The service doesn't support private repositories yet; support is coming on plans that include it, and only through the GitHub App.</p>
 
     <h2>Your responsibilities</h2>
     <ul>
@@ -101,10 +104,11 @@ const TERMS = {
     </ul>
 
     <h2>Your content</h2>
-    <p>You keep all rights to your repositories and issues. You give us permission to fetch, cache, render and display the issue data of the repositories you connect, for the purpose of providing the service. Roadmaps show data that is already public on GitHub, and anyone with a roadmap's URL can view it.</p>
+    <p>You keep all rights to your repositories and issues. You give us permission to fetch, cache, render and display the issue data of the repositories you connect, for the purpose of providing the service. Anyone with a public repository's roadmap URL can view it.</p>
+    <p>Once private repositories are supported, you will decide who sees a private repository's roadmap. It will show the titles, links and labels of the issues you label for it to whoever you give access, so only label issues whose details you're happy for them to see. We will keep that data confidential and use it only to provide the service.</p>
 
     <h2>The GitHub App</h2>
-    <p>The App asks for read-only access to issues, contents and metadata. It never writes to your repositories. You can remove it at any time from your GitHub settings, which stops the service for those repositories.</p>
+    <p>The App asks for read-only access to issues, contents and metadata, for public and private repositories alike. It never writes to your repositories, and reads only the issues and files described in our <a href="/privacy">Privacy Policy</a>. You can remove it at any time from your GitHub settings, which stops the service for those repositories.</p>
 
     <h2>Plans and fees</h2>
     <p>The free plan costs nothing. Paid plans for the GitHub App are bought on GitHub Marketplace, at the price shown on the listing: GitHub bills you and takes payment under its own terms. You can change or cancel your plan in GitHub's billing settings; a downgrade or cancellation takes effect at the end of the billing period you've paid for, and the paid plan continues until then. A paid plan arranged with us directly is billed as agreed with you. We may change plans, features and limits, and we'll give paid customers reasonable notice of changes that affect what they pay for.</p>
