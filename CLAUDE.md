@@ -127,7 +127,7 @@ Only **public** repos are read through the App: paid private access isn't built 
 
 **Verification:** on every request, before any cached verification is trusted, `verifyRepo()` checks an installed repo through `getGitHubHeaders()`: a private repo is refused (and its `cache:issues:` entry deleted), and so is one whose installation can't be used (after one retry, so an uninstalled repo is then looked up as not installed). A public installed repo is verified without a `.roadmapper` file, with the higher of the installation's tier and the tier of a confirmed API key registered for the repo (an install never downgrades a paid key). Verifications are cached in `repo:{owner}/{repo}` with `source: 'app' | 'key'`; an `app` verification is ignored once the App is no longer installed, so the repo then needs its own `.roadmapper` file. Everyone else keeps the `.roadmapper` flow. `verifyRepo()` returns `{ verified, tier, source }`.
 
-**Case-folding:** GitHub names are case-insensitive, so `repoSlug()` (`lib/repo-slug.js`) lowercases `owner/repo` in the cache keys (`repo:`, `repo-ttl:`, `install:`, `visibility:`, `cache:issues:`, `cache:invalidated:`, the rate limit identifier). `repo-key:` is persistent registration data and keeps its registered case; key ownership is compared case-insensitively. `scripts/set-tier.js <owner> <repo> <tier>` sets the tier on the installation (covering all its repos, looked up via `getInstallationId()` when not cached) when the repo is installed, and on the API key when one is registered; `scripts/set-tier.js --installation <id> <tier>` sets an installation's tier directly.
+**Case-folding:** GitHub names are case-insensitive, so `repoSlug()` (`lib/repo-slug.js`) lowercases `owner/repo` in every Redis key built from it (`repo:`, `repo-ttl:`, `install:`, `visibility:`, `cache:issues:`, `cache:invalidated:`, `repo-key:`, the rate limit identifier), so a mixed-case URL reads the same entries (and tier) as a lowercase one. The `apikey:` record keeps the registered case for display; key ownership is compared case-insensitively. `getRepoKeyHash()` (`lib/keys.js`) is the one way to read `repo-key:`: it falls back to a key in the request's own case written before case-folding, and `scripts/fold-repo-keys.js` copies those legacy keys to their lowercased names (run it once after deploying). `scripts/set-tier.js <owner> <repo> <tier>` sets the tier on the installation (covering all its repos, looked up via `getInstallationId()` when not cached) when the repo is installed, and on the API key when one is registered; `scripts/set-tier.js --installation <id> <tier>` sets an installation's tier directly.
 
 ### GitHub App Install Flow
 
@@ -232,7 +232,7 @@ visibility:{owner}/{repo}      → String ('public' | 'private', 60s TTL; instal
 ratelimit:*                    → Managed by @upstash/ratelimit SDK
 ```
 
-`{owner}/{repo}` in the cache keys above is lowercased (`repoSlug()`); `repo-key:` keeps the registered case. Installation tokens are never stored in Redis.
+`{owner}/{repo}` in the keys above is lowercased (`repoSlug()`); `apikey:` keeps the registered case in its fields. Installation tokens are never stored in Redis.
 
 ## Development Commands
 
@@ -479,6 +479,7 @@ Example: `http://localhost:5002/rocketstack-matt/roadmapper/ffffff/24292f`
 - `lib/cache.js`: GitHub issues response caching with ETag support
 - `lib/ratelimit.js`: Per-repo and per-IP rate limiting
 - `scripts/set-tier.js`: CLI utility to update a repo's or installation's tier in Redis
+- `scripts/fold-repo-keys.js`: one-off migration copying pre-case-folding `repo-key:` entries to lowercased names
 - `lib/middleware.js`: `withMiddleware()` HOF wrapper
 - `server.js`: Local Express server for development
 - `vercel.json`: Serverless deployment configuration

@@ -28,6 +28,7 @@ require('dotenv').config();
 const redis = require('../lib/redis');
 const { getInstallationId, setInstallationTier } = require('../lib/github-app');
 const { repoSlug } = require('../lib/repo-slug');
+const { getRepoKeyHash } = require('../lib/keys');
 
 const usage = () => {
   console.error('Usage: node scripts/set-tier.js <owner> <repo> <tier>');
@@ -68,7 +69,7 @@ const updateInstallation = async (installationId) => {
   const [owner, repo] = [first, second];
 
   // Find the key hash and GitHub App installation via reverse lookups
-  const keyHash = await redis.get(`repo-key:${owner}/${repo}`);
+  const keyHash = await getRepoKeyHash(owner, repo);
   const installationId = await getInstallationId(owner, repo);
   if (!keyHash && !installationId) {
     console.error(`No API key or GitHub App installation found for ${owner}/${repo}`);
