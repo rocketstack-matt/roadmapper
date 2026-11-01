@@ -2,4 +2,28 @@
 
 ## Introductory description
 
-Turn your GitHub issues into a clear, shareable roadmap. Roadmapper organizes your public repository’s issues into Now, Next, and Later using simple labels. Embed your roadmap in your README or documentation to show your community what you’re working on and what’s coming next—updated automatically as your issues change.
+GitHub limits this field to 255 characters.
+
+Turn your GitHub issues into a shareable roadmap. Label issues Now, Next or Later and Roadmapper builds a roadmap for your public repo that you can embed in your README or docs, updated automatically as your issues change.
+
+## Detailed description
+
+Markdown. Kept under 1,000 characters, which I believe is GitHub's limit for this field; check the counter in the form.
+
+```markdown
+### Your roadmap, straight from your issues
+
+Add a **Roadmap: Now**, **Roadmap: Next** or **Roadmap: Later** label to an issue and it appears in that column. Close or relabel it and the roadmap follows.
+
+### Features
+
+- **Embed anywhere:** an image for your README, an iframe for your docs or an HTML image map, with every card linking to its issue
+- **Your colours:** cards pick up your label colours, and the background and text colours are yours to set
+- **Groups:** label issues `Roadmap Group: <name>` to group them within a column
+- **Read-only:** Roadmapper only reads issues, works with public repositories and never writes to your repo
+
+### Plans
+
+- **Free:** refreshes every hour
+- **Paid:** live updates within seconds of an issue changing
+```
