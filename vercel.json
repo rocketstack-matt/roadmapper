@@ -38,6 +38,10 @@
       "use": "@vercel/node"
     },
     {
+      "src": "api/legal.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "public/**",
       "use": "@vercel/static"
     }
@@ -68,6 +72,10 @@
     {
       "src": "/setup",
       "dest": "/api/setup.js"
+    },
+    {
+      "src": "/(privacy|terms)/?",
+      "dest": "/api/legal.js"
     },
     {
       "src": "/api/confirm",

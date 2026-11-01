@@ -27,3 +27,8 @@ Add a **Roadmap: Now**, **Roadmap: Next** or **Roadmap: Later** label to an issu
 - **Free:** refreshes every hour
 - **Paid:** live updates within seconds of an issue changing
 ```
+
+## Privacy policy and terms of service URLs
+
+- **Privacy policy URL:** https://roadmapper.rocketstack.co/privacy
+- **Terms of service URL:** https://roadmapper.rocketstack.co/terms
