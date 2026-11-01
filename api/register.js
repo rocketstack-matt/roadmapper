@@ -3,7 +3,7 @@ const axios = require('axios');
 const { withMiddleware } = require('../lib/middleware');
 const { generateApiKey, storeApiKey, keyExistsForRepo, storeConfirmToken } = require('../lib/keys');
 const { sendConfirmationEmail, isEmailConfigured } = require('../lib/email');
-const { getGitHubHeaders } = require('../lib/github-app');
+const { getGitHubHeaders, PrivateRepoError } = require('../lib/github-app');
 
 const handler = async (req, res) => {
   // Only accept POST requests
@@ -50,6 +50,10 @@ const handler = async (req, res) => {
     const headers = await getGitHubHeaders(owner, repo);
     await axios.get(`https://api.github.com/repos/${owner}/${repo}`, { headers });
   } catch (error) {
+    if (error instanceof PrivateRepoError) {
+      res.status(403).json({ error: 'Private repositories are not supported yet' });
+      return;
+    }
     if (error.response && error.response.status === 404) {
       res.status(404).json({ error: `Repository ${owner}/${repo} not found on GitHub` });
       return;

@@ -423,9 +423,7 @@ const fetchIssuesForLabel = async (owner, repo, label, headers) => {
 // Fetch the open issues for every roadmap label and merge them, deduping by
 // issue number (an issue may carry more than one roadmap label). The merged
 // result is stripped to the fields the renderer needs before being returned.
-const fetchRoadmapIssues = async (owner, repo) => {
-    const headers = await getGitHubHeaders(owner, repo);
-
+const fetchRoadmapIssues = async (owner, repo, headers) => {
     // Fetch the (small, fixed) label set concurrently to cut latency.
     const perLabel = await Promise.all(
         ROADMAP_LABELS.map(label => fetchIssuesForLabel(owner, repo, label, headers))
@@ -444,6 +442,10 @@ const fetchIssues = async (owner, repo, cacheTtlSeconds) => {
     const debug = process.env.VERCEL_ENV !== 'production';
     const tag = `[cache ${owner}/${repo}]`;
 
+    // Resolved before the cache is read: throws for a private repo in an App
+    // installation, so cached issues are never served for one.
+    const headers = await getGitHubHeaders(owner, repo);
+
     // Check cache first (if caching is available)
     if (cacheTtlSeconds) {
         const { getCachedIssues, cacheIssues, isCacheFresh } = require('./lib/cache');
@@ -457,14 +459,14 @@ const fetchIssues = async (owner, repo, cacheTtlSeconds) => {
         }
 
         if (debug) console.log(`${tag} ${cached ? 'STALE' : 'MISS'} — fetching roadmap issues`);
-        const issues = await fetchRoadmapIssues(owner, repo);
+        const issues = await fetchRoadmapIssues(owner, repo, headers);
         if (debug) console.log(`${tag} fetched ${issues.length} roadmap issues — caching`);
         await cacheIssues(owner, repo, issues, cacheTtlSeconds);
         return issues;
     }
 
     // No caching — fetch directly from GitHub
-    return fetchRoadmapIssues(owner, repo);
+    return fetchRoadmapIssues(owner, repo, headers);
 };
 
 module.exports = {

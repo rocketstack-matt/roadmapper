@@ -3,6 +3,7 @@ jest.mock('../../lib/redis', () => ({
   hset: jest.fn(() => Promise.resolve(0)),
   get: jest.fn(() => Promise.resolve(null)),
   set: jest.fn(() => Promise.resolve('OK')),
+  del: jest.fn(() => Promise.resolve(1)),
 }));
 
 jest.mock('axios');
@@ -207,47 +208,163 @@ describe('lib/verify', () => {
       privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
       publicKeyEncoding: { type: 'spki', format: 'pem' },
     });
+    const { clearTokenCache } = require('../../lib/github-app');
     const originalEnv = process.env;
+    const store = new Map();
+    // What GitHub currently says about owner/repo
+    let github;
 
     beforeEach(() => {
-      process.env = { ...originalEnv, GITHUB_APP_ID: '12345', GITHUB_APP_PRIVATE_KEY: privateKey };
-      redis.get.mockResolvedValue(null);
-      redis.hgetall.mockImplementation((key) =>
-        Promise.resolve(key === 'installation:42' ? { account: 'owner', tier: 'paid' } : null)
-      );
+      process.env = { ...originalEnv, GITHUB_APP_ID: '12345', GITHUB_APP_PRIVATE_KEY: privateKey, GITHUB_TOKEN: 'shared-token' };
+      store.clear();
+      store.set('installation:42', { account: 'owner', tier: 'paid' });
+      clearTokenCache();
+      github = { installed: true, private: false, roadmapperFile: null, mintFails: false };
+      jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      redis.get.mockImplementation(async (key) => (store.has(key) ? store.get(key) : null));
+      redis.set.mockImplementation(async (key, value) => { store.set(key, value); return 'OK'; });
+      redis.del.mockImplementation(async (key) => (store.delete(key) ? 1 : 0));
+      redis.hgetall.mockImplementation(async (key) => (store.has(key) ? { ...store.get(key) } : null));
+      redis.hset.mockImplementation(async (key, fields) => { store.set(key, { ...(store.get(key) || {}), ...fields }); return 1; });
+
+      axios.get.mockImplementation(async (url) => {
+        if (url.endsWith('/installation')) {
+          if (!github.installed) throw { response: { status: 404 } };
+          return { data: { id: 42, account: { login: 'owner' } } };
+        }
+        if (url.endsWith('/contents/.roadmapper')) {
+          if (!github.roadmapperFile) throw { response: { status: 404 } };
+          return { data: { content: Buffer.from(github.roadmapperFile).toString('base64') } };
+        }
+        return { data: { private: github.private } };
+      });
+      axios.post.mockImplementation(async () => {
+        if (github.mintFails) throw { response: { status: github.installed ? 500 : 404 }, message: 'mint failed' };
+        return { data: { token: 'ghs_installation', expires_at: new Date(Date.now() + 3600 * 1000).toISOString() } };
+      });
     });
 
     afterEach(() => {
       process.env = originalEnv;
+      console.error.mockRestore();
+      redis.get.mockImplementation(() => Promise.resolve(null));
+      redis.set.mockImplementation(() => Promise.resolve('OK'));
+      redis.del.mockImplementation(() => Promise.resolve(1));
       redis.hgetall.mockImplementation(() => Promise.resolve(null));
+      redis.hset.mockImplementation(() => Promise.resolve(0));
+      axios.post.mockReset();
     });
 
-    test('verifies an installed repo with the installation tier, without a .roadmapper file', async () => {
-      axios.get.mockImplementation((url) => (url.endsWith('/repos/owner/repo/installation')
-        ? Promise.resolve({ data: { id: 42, account: { login: 'owner' } } })
-        : Promise.reject({ response: { status: 404 } })));
-
+    test('serves a public repo in an installation with its tier, without a .roadmapper file', async () => {
       const result = await verifyRepo('owner', 'repo');
 
       expect(result).toEqual({ verified: true, tier: 'paid' });
       expect(axios.get).not.toHaveBeenCalledWith(expect.stringContaining('/contents/.roadmapper'), expect.anything());
-      expect(redis.hset).toHaveBeenCalledWith('repo:owner/repo', expect.objectContaining({ tier: 'paid' }));
+      expect(store.get('repo:owner/repo')).toEqual(expect.objectContaining({ tier: 'paid', source: 'app' }));
+    });
+
+    test('refuses a private repo in an installation', async () => {
+      github.private = true;
+      store.set('cache:issues:owner/repo', '{"issues":[]}');
+
+      const result = await verifyRepo('owner', 'repo');
+
+      expect(result).toEqual({ verified: false, reason: 'Private repositories are not supported yet' });
+      expect(store.has('repo:owner/repo')).toBe(false);
+      expect(store.has('cache:issues:owner/repo')).toBe(false);
+    });
+
+    test('refuses a private repo in an installation even with a .roadmapper file', async () => {
+      github.private = true;
+      github.roadmapperFile = validKey;
+      store.set(`apikey:${keyHash}`, { owner: 'owner', repo: 'repo', tier: 'free' });
+
+      const result = await verifyRepo('owner', 'repo');
+
+      expect(result.verified).toBe(false);
+    });
+
+    test('stops serving a repo made private, despite the cached verification', async () => {
+      expect((await verifyRepo('owner', 'repo')).verified).toBe(true);
+      expect(store.get('visibility:owner/repo')).toBe('public');
+
+      // The repo is made private; the 60s visibility cache then expires.
+      github.private = true;
+      store.delete('visibility:owner/repo');
+
+      const result = await verifyRepo('owner', 'repo');
+
+      expect(result).toEqual({ verified: false, reason: 'Private repositories are not supported yet' });
+      expect(store.get('repo-ttl:owner/repo')).toBe('1'); // the cached verification was not trusted
+    });
+
+    test('drops an App-only verification after an uninstall instead of using GITHUB_TOKEN', async () => {
+      expect((await verifyRepo('owner', 'repo')).verified).toBe(true);
+
+      // The App is uninstalled; the cached install mapping is still there.
+      github.installed = false;
+      github.mintFails = true;
+      clearTokenCache();
+      store.delete('visibility:owner/repo');
+
+      const result = await verifyRepo('owner', 'repo');
+
+      expect(result.verified).toBe(false);
+      expect(result.reason).toContain('No .roadmapper file');
+      expect(store.get('install:owner/repo')).toBe('none');
+    });
+
+    test('keeps serving a repo with its own .roadmapper file after an uninstall', async () => {
+      github.roadmapperFile = validKey;
+      store.set(`apikey:${keyHash}`, { owner: 'owner', repo: 'repo', tier: 'free' });
+      expect((await verifyRepo('owner', 'repo')).verified).toBe(true);
+
+      github.installed = false;
+      github.mintFails = true;
+      clearTokenCache();
+      store.delete('visibility:owner/repo');
+
+      expect(await verifyRepo('owner', 'repo')).toEqual({ verified: true, tier: 'free' });
+    });
+
+    test('refuses an installed repo when the token request fails, without falling back to GITHUB_TOKEN', async () => {
+      github.mintFails = true;
+
+      const result = await verifyRepo('owner', 'repo');
+
+      expect(result.verified).toBe(false);
+      expect(result.reason).toContain('GitHub App');
+      expect(axios.get).not.toHaveBeenCalledWith(expect.anything(), { headers: { Authorization: 'Bearer shared-token' } });
+      expect(store.has('install:owner/repo')).toBe(false);
+    });
+
+    test('does not downgrade a repo with a paid key', async () => {
+      store.set('installation:42', { account: 'owner', tier: 'free' });
+      store.set('repo-key:owner/repo', keyHash);
+      store.set(`apikey:${keyHash}`, { owner: 'owner', repo: 'repo', tier: 'paid' });
+
+      expect(await verifyRepo('owner', 'repo')).toEqual({ verified: true, tier: 'paid' });
+    });
+
+    test('case-folds owner and repo in cache keys', async () => {
+      await verifyRepo('Owner', 'Repo');
+
+      expect(store.has('repo:owner/repo')).toBe(true);
+      expect(store.has('install:owner/repo')).toBe(true);
     });
 
     test('falls back to the .roadmapper file when the App is not installed', async () => {
-      axios.get.mockImplementation((url) => (url.endsWith('/installation')
-        ? Promise.reject({ response: { status: 404 } })
-        : Promise.resolve({ data: { content: Buffer.from(validKey).toString('base64') } })));
-      redis.hgetall.mockImplementation((key) =>
-        Promise.resolve(key === `apikey:${keyHash}` ? { owner: 'owner', repo: 'repo', tier: 'free' } : null)
-      );
+      github.installed = false;
+      github.roadmapperFile = validKey;
+      store.set(`apikey:${keyHash}`, { owner: 'owner', repo: 'repo', tier: 'free' });
 
       const result = await verifyRepo('owner', 'repo');
 
       expect(result).toEqual({ verified: true, tier: 'free' });
       expect(axios.get).toHaveBeenCalledWith(
         'https://api.github.com/repos/owner/repo/contents/.roadmapper',
-        expect.anything()
+        { headers: { Authorization: 'Bearer shared-token' } }
       );
     });
   });

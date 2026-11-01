@@ -7,6 +7,7 @@ jest.mock('../lib/keys', () => ({
 }));
 jest.mock('../lib/github-app', () => ({
   getGitHubHeaders: jest.fn(() => Promise.resolve({ Authorization: 'Bearer ghs_installation' })),
+  PrivateRepoError: class PrivateRepoError extends Error {},
 }));
 jest.mock('../lib/email', () => ({
   isEmailConfigured: jest.fn(() => false),
@@ -111,6 +112,19 @@ describe('api/register', () => {
       'https://api.github.com/repos/facebook/react',
       { headers: { Authorization: 'Bearer ghs_installation' } }
     );
+  });
+
+  test('returns 403 for a private repo in an App installation', async () => {
+    const { PrivateRepoError } = require('../lib/github-app');
+    getGitHubHeaders.mockRejectedValue(new PrivateRepoError('owner/secret is a private repository'));
+
+    const req = createMockReq({ owner: 'owner', repo: 'secret', email: 'test@example.com' });
+    const res = createMockRes();
+
+    await registerHandler(req, res);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.error).toContain('Private repositories');
   });
 
   test('returns 404 when repo does not exist on GitHub', async () => {

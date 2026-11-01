@@ -16,6 +16,7 @@
 require('dotenv').config();
 const redis = require('../lib/redis');
 const { NOT_INSTALLED } = require('../lib/github-app');
+const { repoSlug } = require('../lib/repo-slug');
 
 const [owner, repo, tier] = process.argv.slice(2);
 
@@ -33,7 +34,7 @@ if (!['free', 'paid'].includes(tier)) {
 (async () => {
   // Find the key hash and GitHub App installation via reverse lookups
   const keyHash = await redis.get(`repo-key:${owner}/${repo}`);
-  const installationId = await redis.get(`install:${owner}/${repo}`);
+  const installationId = await redis.get(`install:${repoSlug(owner, repo)}`);
   const installed = installationId && installationId !== NOT_INSTALLED;
   if (!keyHash && !installed) {
     console.error(`No API key or GitHub App installation found for ${owner}/${repo}`);
@@ -53,8 +54,8 @@ if (!['free', 'paid'].includes(tier)) {
   }
 
   // Clear the cached verification so it picks up the new tier on next request
-  await redis.del(`repo:${owner}/${repo}`);
-  await redis.del(`repo-ttl:${owner}/${repo}`);
+  await redis.del(`repo:${repoSlug(owner, repo)}`);
+  await redis.del(`repo-ttl:${repoSlug(owner, repo)}`);
   console.log(`Cleared verification cache for ${owner}/${repo}`);
 
   console.log(`Done. ${owner}/${repo} is now on the "${tier}" tier.`);

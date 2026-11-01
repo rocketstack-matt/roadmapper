@@ -304,6 +304,8 @@ To increase the rate limit to 5,000 requests/hour, add a GitHub Personal Access 
 
 Instead of sharing one token across every roadmap, a deployment can read repos through a GitHub App: each repo where the App is installed is read with that installation's own token (and its own rate limit), and needs no `.roadmapper` file. Repos without the App keep using `GITHUB_TOKEN` and the `.roadmapper` file.
 
+Only public repos are served through the App. A private repo in an installation is refused, and a repo made private stops being served within a minute. Tokens are scoped to the one repo being read, with read-only Issues, Contents and Metadata, and are kept in memory only.
+
 1. **Create a GitHub App** (Settings → Developer settings → GitHub Apps → New GitHub App) with these repository permissions, all read-only:
    - **Issues**: Read — to fetch roadmap issues
    - **Metadata**: Read — required by GitHub for every App

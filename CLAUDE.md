@@ -112,13 +112,19 @@ Roadmapper requires per-repository registration. Repo owners register via the la
 
 When `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` are set, repos where the Roadmapper GitHub App (owned by the `rocket-stack` org) is installed are read with that installation's token instead of the shared `GITHUB_TOKEN`, so each customer gets their own GitHub rate limit pool. Without those env vars nothing changes: no App lookups are made and `GITHUB_TOKEN` is used as before.
 
+Only **public** repos are read through the App: paid private access isn't built yet, so a private repo in an installation is refused outright.
+
+- `isAppConfigured()`: both env vars set and non-blank after trimming.
 - `createAppJwt()`: signs an RS256 App JWT with Node's built-in `crypto` (no JWT dependency). `iat` is backdated 60s for clock drift; `exp` is 9 minutes out. The private key may contain literal `\n` escapes (as env var UIs often store PEMs) — they are unescaped.
-- `getInstallationId(owner, repo)`: reads `install:{owner}/{repo}`; when absent, looks it up via `GET /repos/{owner}/{repo}/installation` (App JWT) and caches it for 24h, recording `installation:{id}`. A 404 caches a `none` marker for 10 minutes, so a new install is noticed quickly without a lookup on every request. Other errors (bad App credentials, outage) aren't cached and fall back to `GITHUB_TOKEN`. Lazy lookup means this works before webhooks exist; the TTLs make it self-correcting when a repo is removed from an installation.
-- `getInstallationToken(id)`: reads `install-token:{id}`; when absent, mints one via `POST /app/installations/{id}/access_tokens` and caches it until 5 minutes before its 1-hour expiry.
-- `getGitHubHeaders(owner, repo)`: **the one place GitHub auth headers come from** — the installation token if the App is installed, else `GITHUB_TOKEN`, else none. Used by `fetchIssues` (`roadmap.js`), `fetchRoadmapperFile` (`lib/verify.js`) and `api/register.js`. If the token request 404s (App uninstalled), the `install:` mapping is deleted and it falls back to `GITHUB_TOKEN`.
+- `getInstallationId(owner, repo)`: reads `install:{owner}/{repo}`; when absent, looks it up via `GET /repos/{owner}/{repo}/installation` (App JWT) and caches it for 24h, recording `installation:{id}`. A 404 caches a `none` marker for 10 minutes, so a new install is noticed quickly without a lookup on every request. Other errors (bad App credentials, outage) aren't cached and the repo is treated as not installed for that request. Lazy lookup means this works before webhooks exist; the TTLs make it self-correcting when a repo is removed from an installation.
+- `getInstallationToken(id, owner, repo)`: mints a token via `POST /app/installations/{id}/access_tokens` scoped to that one repo and to read-only `issues`, `contents` and `metadata` (`TOKEN_PERMISSIONS`). Tokens are held **in process memory only** (never in Redis, logs or responses), per installation and repo, until 5 minutes before their 1-hour expiry — so without Redis a token isn't minted per request either.
+- `isRepoPrivate(owner, repo, headers)`: `GET /repos/{owner}/{repo}` with the installation token, cached in `visibility:{owner}/{repo}` for 60s (`VISIBILITY_TTL`), so a repo made private stops being served within a minute. Anything but an explicit `private: false` counts as private.
+- `getGitHubHeaders(owner, repo)`: **the one place GitHub auth headers come from** — the installation token if the App is installed, else `GITHUB_TOKEN`, else none. Used by `fetchIssues` (`roadmap.js`, called before the issue cache is read so cached issues are never served for a private repo), `fetchRoadmapperFile` (`lib/verify.js`) and `api/register.js`. For an installed repo it **never falls back to `GITHUB_TOKEN`** (the repo may have no `.roadmapper` opt-in): it throws `PrivateRepoError` for a private repo, and `AppAuthError` when the token request or visibility check fails — which also deletes the `install:` mapping so the next lookup notices an uninstall.
 - `getInstallationTier(id)`: the `tier` on `installation:{id}`, default `free`.
 
-**Verification:** `verifyRepo()` treats a repo with the App installed as verified without a `.roadmapper` file, using the installation's tier (cached in `repo:{owner}/{repo}` like any verification). Everyone else keeps the `.roadmapper` flow. `scripts/set-tier.js` sets the tier on the installation (covering all its repos) when the repo is installed, and on the API key when one is registered.
+**Verification:** on every request, before any cached verification is trusted, `verifyRepo()` checks an installed repo through `getGitHubHeaders()`: a private repo is refused (and its `cache:issues:` entry deleted), and so is one whose installation can't be used (after one retry, so an uninstalled repo is then looked up as not installed). A public installed repo is verified without a `.roadmapper` file, with the higher of the installation's tier and the tier of a confirmed API key registered for the repo (an install never downgrades a paid key). Verifications are cached in `repo:{owner}/{repo}` with `source: 'app' | 'key'`; an `app` verification is ignored once the App is no longer installed, so the repo then needs its own `.roadmapper` file. Everyone else keeps the `.roadmapper` flow.
+
+**Case-folding:** GitHub names are case-insensitive, so `repoSlug()` (`lib/repo-slug.js`) lowercases `owner/repo` in the cache keys (`repo:`, `repo-ttl:`, `install:`, `visibility:`, `cache:issues:`, the rate limit identifier). `repo-key:` is persistent registration data and keeps its registered case; key ownership is compared case-insensitively. `scripts/set-tier.js` sets the tier on the installation (covering all its repos) when the repo is installed, and on the API key when one is registered.
 
 ### Lib Modules (`lib/`)
 
@@ -126,7 +132,8 @@ When `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` are set, repos where the Roadm
 - `lib/tiers.js`: Tier configuration (free: 3600s cache/60 req/hr, paid: 30s cache/10000 req/hr)
 - `lib/keys.js`: Key generation, hashing, storage, lookup, email confirmation (`confirmRegistration`)
 - `lib/verify.js`: Repo verification — GitHub App installation or `.roadmapper` file, validates key, caches result
-- `lib/github-app.js`: GitHub App auth — App JWT, installation lookup, installation token cache, `getGitHubHeaders()`
+- `lib/github-app.js`: GitHub App auth — App JWT, installation lookup, in-memory installation tokens, visibility check, `getGitHubHeaders()`
+- `lib/repo-slug.js`: `repoSlug(owner, repo)` — lowercased `owner/repo` for Redis keys
 - `lib/cache.js`: GitHub issues response caching with ETag support and application-level freshness
 - `lib/ratelimit.js`: Per-repo and per-IP rate limiting using `@upstash/ratelimit`
 - `lib/email.js`: Resend email client with graceful fallback (`isEmailConfigured`, `sendConfirmationEmail`)
@@ -185,16 +192,18 @@ The `withMiddleware(handler, options)` higher-order function wraps all API handl
 
 ```
 apikey:{sha256_hash}           → Hash { owner, repo, tier, email, createdAt, emailConfirmed }
-repo:{owner}/{repo}            → Hash { keyHash, tier, verifiedAt }
+repo:{owner}/{repo}            → Hash { tier, source ('app' | 'key'), verifiedAt }
 repo-key:{owner}/{repo}        → String (key hash, for duplicate checking)
 repo-ttl:{owner}/{repo}        → String (TTL marker, expires after 24hr)
 confirm:{token}                → String (key hash, 24hr TTL, one-time use)
 cache:issues:{owner}/{repo}    → String (JSON { issues, etag, cachedAt }, no TTL)
 install:{owner}/{repo}         → String (GitHub App installation id, 24hr TTL; "none" = not installed, 10min TTL)
 installation:{id}              → Hash { account, repos (JSON array of owner/repo seen), tier }
-install-token:{id}             → String (installation access token, expires 5min before GitHub's 1hr expiry)
+visibility:{owner}/{repo}      → String ('public' | 'private', 60s TTL; installed repos only)
 ratelimit:*                    → Managed by @upstash/ratelimit SDK
 ```
+
+`{owner}/{repo}` in the cache keys above is lowercased (`repoSlug()`); `repo-key:` keeps the registered case. Installation tokens are never stored in Redis.
 
 ## Development Commands
 
