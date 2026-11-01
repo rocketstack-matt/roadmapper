@@ -256,9 +256,11 @@ describe('lib/github-app', () => {
         expect(await getInstallationTier('42')).toBe('paid');
       });
 
-      test('ignores a plan the installation is not linked to', async () => {
+      test("ignores another account's plan", async () => {
         mockStore.set('installation:42', { tier: 'free' });
+        axios.get.mockResolvedValueOnce({ data: { id: 42, account: { login: 'other', id: 88 } } });
         expect(await getInstallationTier('42')).toBe('free');
+        expect(mockStore.get('installation:42').accountId).toBe('88');
       });
 
       test('a manual paid tier wins over a free or cancelled plan', async () => {
@@ -291,18 +293,61 @@ describe('lib/github-app', () => {
       expect(mockStore.get('account-installations:77')).toEqual({ 42: '1' });
     });
 
+    test('a failed link heals on the next tier read', async () => {
+      const redis = require('../../lib/redis');
+      const error = jest.spyOn(console, 'error').mockImplementation(() => {});
+      process.env.GITHUB_MARKETPLACE_PLANS = '{"9001":"paid"}';
+      mockStore.set('marketplace:77', { account: 'owner', planId: '9001', planName: 'Paid' });
+
+      // The installation is recorded, but the link's last write fails, as a
+      // Redis blip would
+      const write = redis.hset.getMockImplementation();
+      redis.hset.mockImplementationOnce(write).mockImplementationOnce(write).mockRejectedValueOnce(new Error('redis down'));
+      axios.get.mockResolvedValueOnce({ data: { id: 42, account: { login: 'owner', id: 77 } } });
+      await getInstallationId('owner', 'repo');
+      expect(mockStore.get('installation:42').accountId).toBeUndefined();
+      axios.get.mockClear();
+
+      // The next tier read asks GitHub for the account and links it
+      axios.get.mockResolvedValueOnce({ data: { id: 42, account: { login: 'owner', id: 77 } } });
+      expect(await getInstallationTier('42')).toBe('paid');
+      expect(axios.get.mock.calls[0][0]).toBe('https://api.github.com/app/installations/42');
+      expect(mockStore.get('installation:42').accountId).toBe('77');
+      expect(mockStore.get('account-installations:77')).toEqual({ 42: '1' });
+
+      // Linked now, so no more lookups
+      expect(await getInstallationTier('42')).toBe('paid');
+      expect(axios.get).toHaveBeenCalledTimes(1);
+      error.mockRestore();
+    });
+
+    test('a failed account lookup during a tier read is retried on the next one', async () => {
+      const error = jest.spyOn(console, 'error').mockImplementation(() => {});
+      process.env.GITHUB_MARKETPLACE_PLANS = '{"9001":"paid"}';
+      mockStore.set('marketplace:77', { account: 'owner', planId: '9001', planName: 'Paid' });
+      mockStore.set('installation:42', { tier: 'free', repos: '[]' });
+
+      axios.get.mockRejectedValueOnce(new Error('GitHub outage'));
+      expect(await getInstallationTier('42')).toBe('free');
+      expect(error).toHaveBeenCalled();
+
+      axios.get.mockResolvedValueOnce({ data: { id: 42, account: { login: 'owner', id: 77 } } });
+      expect(await getInstallationTier('42')).toBe('paid');
+      error.mockRestore();
+    });
+
     test("getAccountInstallations looks up an organization's installation and links it", async () => {
       mockStore.set('account-installations:77', { 41: '1' });
       axios.get.mockResolvedValue({ data: { id: 42 } });
 
-      expect(await getAccountInstallations({ id: 77, login: 'acme', type: 'Organization' })).toEqual(['41', '42']);
+      expect((await getAccountInstallations({ id: 77, login: 'acme', type: 'Organization' })).installations).toEqual(['41', '42']);
       expect(axios.get.mock.calls[0][0]).toBe('https://api.github.com/orgs/acme/installation');
       expect(mockStore.get('installation:42').accountId).toBe('77');
     });
 
     test("getAccountInstallations looks up a user's installation", async () => {
       axios.get.mockResolvedValue({ data: { id: 42 } });
-      expect(await getAccountInstallations({ id: 77, login: 'someone', type: 'User' })).toEqual(['42']);
+      expect((await getAccountInstallations({ id: 77, login: 'someone', type: 'User' })).installations).toEqual(['42']);
       expect(axios.get.mock.calls[0][0]).toBe('https://api.github.com/users/someone/installation');
     });
 
@@ -310,18 +355,18 @@ describe('lib/github-app', () => {
       const error = jest.spyOn(console, 'error').mockImplementation(() => {});
       mockStore.set('account-installations:77', { 41: '1' });
       axios.get.mockRejectedValueOnce(notFound());
-      expect(await getAccountInstallations({ id: 77, login: 'acme', type: 'Organization' })).toEqual(['41']);
+      expect((await getAccountInstallations({ id: 77, login: 'acme', type: 'Organization' })).installations).toEqual(['41']);
       expect(error).not.toHaveBeenCalled();
 
       axios.get.mockRejectedValueOnce(new Error('boom'));
-      expect(await getAccountInstallations({ id: 77, login: 'acme', type: 'Organization' })).toEqual(['41']);
+      expect((await getAccountInstallations({ id: 77, login: 'acme', type: 'Organization' })).installations).toEqual(['41']);
       expect(error).toHaveBeenCalled();
       error.mockRestore();
     });
 
     test('getAccountInstallations makes no lookup without the App', async () => {
       delete process.env.GITHUB_APP_ID;
-      expect(await getAccountInstallations({ id: 77, login: 'acme', type: 'Organization' })).toEqual([]);
+      expect((await getAccountInstallations({ id: 77, login: 'acme', type: 'Organization' })).installations).toEqual([]);
       expect(axios.get).not.toHaveBeenCalled();
     });
   });

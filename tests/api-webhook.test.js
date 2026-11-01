@@ -10,6 +10,7 @@ jest.mock('../lib/redis', () => ({
   del: jest.fn(async (key) => (mockStore.delete(key) ? 1 : 0)),
   hgetall: jest.fn(async (key) => (mockStore.has(key) ? { ...mockStore.get(key) } : null)),
   hset: jest.fn(async (key, fields) => { mockStore.set(key, { ...(mockStore.get(key) || {}), ...fields }); return 1; }),
+  eval: jest.fn(async (script, keys, args) => require('./redis-lua').evalLua(mockStore, script, keys, args)),
 }));
 
 const webhookHandler = require('../api/webhook');
@@ -481,6 +482,37 @@ describe('api/webhook', () => {
         repositories: [repository],
       });
       expect(await getInstallationTier(42)).toBe('paid');
+    });
+
+    test('a failed account lookup fails the delivery, and a redelivery recovers', async () => {
+      const axios = require('axios');
+      const error = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const { privateKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+        privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+        publicKeyEncoding: { type: 'spki', format: 'pem' },
+      });
+      process.env.GITHUB_APP_ID = '123';
+      process.env.GITHUB_APP_PRIVATE_KEY = privateKey;
+      // Installation 42 is recorded but its account link was lost
+      mockStore.set('installation:42', { account: 'owner', repos: JSON.stringify(['owner/repo']), tier: 'free' });
+      verified('owner/repo');
+      const get = jest.spyOn(axios, 'get').mockRejectedValueOnce(new Error('GitHub outage'));
+
+      const payload = purchase('purchased', PAID_PLAN, '2026-11-01T00:00:00+00:00');
+      expect((await send('marketplace_purchase', payload)).statusCode).toBe(500);
+      expect(mockStore.get('marketplace:77').planId).toBe('9001');
+      expect(mockStore.has('repo:owner/repo')).toBe(true);
+
+      // Redelivered from the App settings once GitHub is back
+      get.mockResolvedValueOnce({ data: { id: 42 } });
+      const res = await send('marketplace_purchase', payload);
+      expect(res.statusCode).toBe(200);
+      expect(get.mock.calls[1][0]).toBe('https://api.github.com/orgs/owner/installation');
+      expect(mockStore.has('repo:owner/repo')).toBe(false);
+      expect(await getInstallationTier(42)).toBe('paid');
+      get.mockRestore();
+      error.mockRestore();
     });
 
     test('a manual paid tier survives a Marketplace cancellation', async () => {

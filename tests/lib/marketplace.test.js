@@ -6,6 +6,7 @@ jest.mock('../../lib/redis', () => ({
   del: jest.fn(async (key) => (mockStore.delete(key) ? 1 : 0)),
   hgetall: jest.fn(async (key) => (mockStore.has(key) ? { ...mockStore.get(key) } : null)),
   hset: jest.fn(async (key, fields) => { mockStore.set(key, { ...(mockStore.get(key) || {}), ...fields }); return 1; }),
+  eval: jest.fn(async (script, keys, args) => require('../redis-lua').evalLua(mockStore, script, keys, args)),
 }));
 
 const {
@@ -162,6 +163,38 @@ describe('lib/marketplace', () => {
       const before = { ...mockStore.get('marketplace:77') };
       await applyPurchaseEvent(event);
       expect(mockStore.get('marketplace:77')).toEqual(before);
+    });
+
+    test('two concurrent deliveries in reverse order leave the newer one applied', async () => {
+      const redis = require('../../lib/redis');
+      const purchased = purchaseEvent('purchased', PAID_PLAN, '2026-11-01T00:00:00+00:00');
+      const cancelled = purchaseEvent('cancelled', PAID_PLAN, '2026-12-01T00:00:00+00:00');
+
+      const [late, early] = await Promise.all([applyPurchaseEvent(cancelled), applyPurchaseEvent(purchased)]);
+      expect(late.changed).toBe(true);
+      expect(early.changed).toBe(false);
+      // The ordering check and the write are one script, never a read then a write
+      expect(redis.eval).toHaveBeenCalledTimes(2);
+      expect(redis.hgetall).not.toHaveBeenCalled();
+      expect(redis.hset).not.toHaveBeenCalled();
+      expect(await getMarketplaceTier('77')).toBe('free');
+    });
+
+    test('the newer delivery wins when the older one is handled first, even interleaved', async () => {
+      const redis = require('../../lib/redis');
+      // Hold the older delivery's script until the newer one has run, as two
+      // webhook invocations racing would
+      let release;
+      const held = new Promise(resolve => { release = resolve; });
+      const run = redis.eval.getMockImplementation();
+      redis.eval.mockImplementationOnce(async (...args) => { await held; return run(...args); });
+
+      const older = applyPurchaseEvent(purchaseEvent('purchased', PAID_PLAN, '2026-11-01T00:00:00+00:00'));
+      await applyPurchaseEvent(purchaseEvent('cancelled', PAID_PLAN, '2026-12-01T00:00:00+00:00'));
+      release();
+      expect((await older).changed).toBe(false);
+      expect(mockStore.get('marketplace:77').planId).toBe('');
+      expect(await getMarketplaceTier('77')).toBe('free');
     });
 
     test('an unknown plan is recorded but grants free', async () => {

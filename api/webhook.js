@@ -154,14 +154,19 @@ const handleLabel = async (payload) => {
  * the end of the billing cycle was scheduled or withdrawn). The plan is
  * recorded on the account; every installation of that account is then
  * re-verified so its repos pick up the plan's tier on their next request.
+ * If GitHub couldn't be asked for the account's installation, the delivery
+ * fails (500) once the linked ones are cleared, so it can be redelivered;
+ * re-applying the event is a no-op apart from clearing them again.
  */
 const handleMarketplacePurchase = async (payload) => {
   const applied = await applyPurchaseEvent(payload);
   if (!applied) return 'ignored';
   if (!applied.changed) return 'updated';
-  for (const installationId of await getAccountInstallations(applied.account)) {
+  const { installations, lookupFailed } = await getAccountInstallations(applied.account);
+  for (const installationId of installations) {
     await clearInstallationVerifications(installationId);
   }
+  if (lookupFailed) throw new Error(`Could not look up the installation of ${applied.account.login}`);
   return 'updated';
 };
 
