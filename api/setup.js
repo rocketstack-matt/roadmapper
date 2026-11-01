@@ -112,7 +112,19 @@ const send = (res, status, title, body) => {
 const message = (res, status, title, text) => send(res, status, title,
   `<h1>${escapeXml(title)}</h1><p class="lead">${text}</p><p><a href="/">Back to Roadmapper</a></p>`);
 
-const repoCard = (baseUrl, { owner, repo }, index, freshness) => {
+const setupGuide = (freshness) => {
+  const labels = LABEL_GUIDE.map((label, i) => `
+          <div class="label-row"><span class="chip" style="background: #${label.color}" id="label-${i}">${escapeXml(label.name)}</span><button class="copy-btn" onclick="copyCode('label-${i}', this)">Copy</button><span class="hint">#${label.color} · ${label.meaning}</span></div>`).join('');
+  return `<section class="repo">
+    <h2>Set up your roadmap</h2>
+    <p class="hint">For each repository below, create these labels using the exact names; each label’s colour becomes the accent on its cards. Skip any the repo already has.</p>
+    ${labels}
+    <p class="hint">Add one of the labels to each issue you want on the roadmap. Only open issues appear; pull requests are ignored. Then preview your roadmap and copy an embed snippet below.</p>
+    <p class="hint">${freshness}</p>
+  </section>`;
+};
+
+const repoCard = (baseUrl, { owner, repo }, index) => {
   const path = `${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
   const github = `https://github.com/${path}`;
   const image = `${baseUrl}/${path}/${DEFAULT_COLORS}`;
@@ -120,8 +132,6 @@ const repoCard = (baseUrl, { owner, repo }, index, freshness) => {
   const embed = `${baseUrl}/embed/${path}/${DEFAULT_COLORS}`;
   const markdown = `[![Roadmap](${image})](${view})`;
   const iframe = `<iframe src="${embed}" width="100%" height="520" frameborder="0"></iframe>`;
-  const labels = LABEL_GUIDE.map((label, i) => `
-          <div class="label-row"><span class="chip" style="background: #${label.color}" id="label-${index}-${i}">${escapeXml(label.name)}</span><button class="copy-btn" onclick="copyCode('label-${index}-${i}', this)">Copy</button><span class="hint">#${label.color} · ${label.meaning}</span></div>`).join('');
   const newIssue = `${github}/issues/new?labels=${encodeURIComponent(LABEL_GUIDE[0].name)}`;
   return `
     <div class="repo">
@@ -129,13 +139,10 @@ const repoCard = (baseUrl, { owner, repo }, index, freshness) => {
       <ol class="steps">
         <li>
           <h3>Create the roadmap labels</h3>
-          <p class="hint">Use these exact names; each label's colour becomes the accent on its cards. Skip any the repo already has.</p>
-          ${labels}
           <div class="links"><a href="${escapeXml(`${github}/labels`)}" target="_blank">Open labels on GitHub</a></div>
         </li>
         <li>
           <h3>Label an open issue</h3>
-          <p class="hint">Add one of the labels to each issue you want on the roadmap. Only open issues appear; pull requests are ignored.</p>
           <div class="links">
             <a href="${escapeXml(newIssue)}" target="_blank">New issue labelled Roadmap: Now</a>
             <a href="${escapeXml(`${github}/issues`)}" target="_blank">Label an existing issue</a>
@@ -143,7 +150,6 @@ const repoCard = (baseUrl, { owner, repo }, index, freshness) => {
         </li>
         <li>
           <h3>Preview your roadmap</h3>
-          <p class="hint">${freshness}</p>
           <div class="links"><a href="${escapeXml(view)}" target="_blank">Open the preview</a></div>
         </li>
         <li>
@@ -181,7 +187,7 @@ const handler = async (req, res) => {
   const params = new URL(req.url, baseUrl).searchParams;
   if (params.get('setup_action') === 'request') {
     return message(res, 200, 'Installation requested',
-      'An owner of the organization needs to approve the Roadmapper GitHub App. Once they have, your roadmaps work straight away, with no file to commit.');
+      'An owner of the organization needs to approve the Roadmapper GitHub App. Once they have, your roadmaps work straight away.');
   }
 
   const installationId = params.get('installation_id') || '';
@@ -224,14 +230,15 @@ const handler = async (req, res) => {
       ? `${emptyHint} Label changes show within seconds; reload the preview.`
       : `${emptyHint} Roadmaps refresh every ${TIERS.paid.cacheTtl} seconds; reload the preview.`;
   const repos = publicRepos.length
-    ? publicRepos.map((r, i) => repoCard(baseUrl, r, i, freshness)).join('')
+    ? publicRepos.map((r, i) => repoCard(baseUrl, r, i)).join('')
     : '<div class="notice">No public repositories are connected yet. <a href="https://github.com/settings/installations" target="_blank">Add one in the App\'s settings on GitHub</a> and refresh this page.</div>';
 
   send(res, 200, 'GitHub App installed', `
     <h1>Roadmapper is installed</h1>
-    <p class="lead">The GitHub App is connected${account}. There's no file to commit: follow the steps below to label your first issue, preview the roadmap and add it to your README.</p>
+    <p class="lead">The GitHub App is connected${account}. Follow the steps below to label your first issue, preview the roadmap and add it to your README.</p>
     <div class="notice">${tierNotice}</div>
     ${privateNotice}
+    ${publicRepos.length ? setupGuide(freshness) : ''}
     ${repos}`);
 };
 

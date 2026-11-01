@@ -41,7 +41,7 @@ Here's what this project's roadmap looks like:
 
 ## Getting Started
 
-1. **Install the Roadmapper GitHub App** from the Get Started section at [roadmapper.rocketstack.co](https://roadmapper.rocketstack.co) and choose the repositories you want roadmaps for. There's no key and no file to commit: installing the App shows you own the repo. GitHub then sends you to a setup page listing your connected repos and their embed URLs. Only public repositories are supported for now.
+1. **Install the Roadmapper GitHub App** from the Get Started section at [roadmapper.rocketstack.co](https://roadmapper.rocketstack.co) and choose the repositories you want roadmaps for. GitHub then sends you to a setup page listing your connected repos and their embed URLs. Only public repositories are supported for now.
 
    **Can't install the App?** If you can't get approval to install a GitHub App on your organization, use an API key instead — see [Using an API key instead](#using-an-api-key-instead).
 

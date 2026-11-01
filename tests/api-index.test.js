@@ -298,7 +298,7 @@ describe('api/index', () => {
       const body = await render();
 
       expect(body).toContain('href="https://github.com/apps/roadmapper-app/installations/new"');
-      expect(body).toContain('No file to commit');
+      expect(body).toContain('Ready in minutes');
       expect(body).toContain('Live updates');
 
       const install = body.indexOf('id="install-app-btn"');
