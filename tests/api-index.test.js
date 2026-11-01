@@ -262,4 +262,63 @@ describe('api/index', () => {
 
     expect(res.body).toContain("getElementById('steps-2-3')");
   });
+
+  describe('GitHub App install', () => {
+    const originalEnv = process.env;
+
+    afterEach(() => {
+      process.env = originalEnv;
+    });
+
+    const render = async () => {
+      const res = createMockRes();
+      await indexHandler(createMockReq('/'), res);
+      return res.body;
+    };
+
+    test('is hidden when the App is not configured; the key form is the main path', async () => {
+      process.env = { ...originalEnv, GITHUB_APP_SLUG: 'roadmapper-app' };
+      delete process.env.GITHUB_APP_ID;
+      const body = await render();
+
+      expect(body).not.toContain('Install the GitHub App');
+      expect(body).not.toContain('<details class="key-fallback"');
+      expect(body).toContain('id="register-form"');
+    });
+
+    test('is hidden without an App slug', async () => {
+      process.env = { ...originalEnv, GITHUB_APP_ID: '1', GITHUB_APP_PRIVATE_KEY: 'key' };
+      delete process.env.GITHUB_APP_SLUG;
+
+      expect(await render()).not.toContain('Install the GitHub App');
+    });
+
+    test('is the primary call to action, with the key form collapsed below it', async () => {
+      process.env = { ...originalEnv, GITHUB_APP_ID: '1', GITHUB_APP_PRIVATE_KEY: 'key', GITHUB_APP_SLUG: 'roadmapper-app' };
+      const body = await render();
+
+      expect(body).toContain('href="https://github.com/apps/roadmapper-app/installations/new"');
+      expect(body).toContain('No file to commit');
+      expect(body).toContain('Live updates');
+
+      const install = body.indexOf('id="install-app-btn"');
+      const details = body.indexOf('<details class="key-fallback" id="key-fallback">');
+      const form = body.indexOf('id="register-form"');
+      const closing = body.indexOf('</details>');
+      expect(install).toBeGreaterThan(-1);
+      expect(install).toBeLessThan(details);
+      expect(details).toBeLessThan(form);
+      expect(form).toBeLessThan(closing);
+      expect(body.indexOf('id="steps-2-3"')).toBeLessThan(closing);
+      expect(body).toContain("Can't install the App? Use an API key");
+    });
+
+    test('opens the key section when returning from email confirmation', async () => {
+      process.env = { ...originalEnv, GITHUB_APP_ID: '1', GITHUB_APP_PRIVATE_KEY: 'key', GITHUB_APP_SLUG: 'roadmapper-app' };
+      const body = await render();
+
+      expect(body).toContain("document.getElementById('key-fallback')");
+      expect(body.match(/openKeyFallback\(\);/g)).toHaveLength(2);
+    });
+  });
 });

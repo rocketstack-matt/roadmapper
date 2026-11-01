@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Roadmapper is a Node.js service that generates dynamic SVG roadmap visualizations from GitHub issues. It reads GitHub issues with specific labels and renders them as a three-column roadmap (Now/Later/Future). The project includes a landing page, multiple embedding options, and automatic label color matching.
+Roadmapper is a Node.js service that generates dynamic SVG roadmap visualizations from GitHub issues. It reads GitHub issues with specific labels and renders them as a three-column roadmap (Now/Later/Future). The project includes a landing page, multiple embedding options, and automatic label color matching. Repos are onboarded by installing the Roadmapper GitHub App (the primary path) or, for users who can't get an App approved, by registering an API key and committing a `.roadmapper` file.
 
 **Production URL**: https://roadmapper.rocketstack.co
 
@@ -89,7 +89,7 @@ The service supports fully customizable colors via two URL parameters:
 
 ### Authentication & Registration System
 
-Roadmapper requires per-repository registration. Repo owners register via the landing page form, receive an API key, and place it in a `.roadmapper` file in their repo root. This proves ownership and keeps URLs clean (no query parameters needed).
+Every repo must be either covered by a GitHub App installation (see "GitHub App Install Flow") or registered with an API key. The key path is the fallback for users who can't install the App: repo owners register via the landing page form, receive an API key, and place it in a `.roadmapper` file in their repo root. This proves ownership and keeps URLs clean (no query parameters needed).
 
 **Registration flow:**
 1. User fills out form on landing page (owner, repo, email) → receives key `rm_...`
@@ -120,11 +120,22 @@ Only **public** repos are read through the App: paid private access isn't built 
 - `getInstallationToken(id, owner, repo)`: mints a token via `POST /app/installations/{id}/access_tokens` scoped to that one repo and to read-only `issues`, `contents` and `metadata` (`TOKEN_PERMISSIONS`). Tokens are held **in process memory only** (never in Redis, logs or responses), per installation and repo, until 5 minutes before their 1-hour expiry — so without Redis a token isn't minted per request either.
 - `isRepoPrivate(owner, repo, headers)`: `GET /repos/{owner}/{repo}` with the installation token, cached in `visibility:{owner}/{repo}` for 60s (`VISIBILITY_TTL`), so a repo made private stops being served within a minute. Anything but an explicit `private: false` counts as private.
 - `getGitHubHeaders(owner, repo)`: **the one place GitHub auth headers come from** — the installation token if the App is installed, else `GITHUB_TOKEN`, else none. Used by `fetchIssues` (`roadmap.js`, called before the issue cache is read so cached issues are never served for a private repo), `fetchRoadmapperFile` (`lib/verify.js`) and `api/register.js`. For an installed repo it **never falls back to `GITHUB_TOKEN`** (the repo may have no `.roadmapper` opt-in): it throws `PrivateRepoError` for a private repo, and `AppAuthError` when the token request or visibility check fails — which also deletes the `install:` mapping so the next lookup notices an uninstall.
-- `getInstallationTier(id)`: the `tier` on `installation:{id}`, default `free`.
+- `getInstallationTier(id)`: **the one function that decides an installation's tier** — every tier check for an installed repo (`verifyRepo()`, the webhook's paid check) goes through it. Installs start on `free`; for now it returns the `tier` recorded on `installation:{id}` (anything but a known tier counts as `free`). Billing is direct (Stripe/invoice) and set by hand; a billing integration (Stripe, GitHub Marketplace) would plug in here.
+- `setInstallationTier(id, tier)`: records the tier on `installation:{id}` (creating the record if the install hasn't been seen yet; `recordInstallation()` never overwrites a tier) and clears `repo:`/`repo-ttl:` for every repo it lists, so the tier applies on their next request. Used by `scripts/set-tier.js`.
+- `getAppInstallUrl()`: `https://github.com/apps/{GITHUB_APP_SLUG}/installations/new`, or `null` unless the App is configured and `GITHUB_APP_SLUG` is set.
+- `getInstallationRepos(id)`: for the setup page — the installation's account and repos (`GET /app/installations/{id}`, then `GET /installation/repositories`, paginated) as `{ account, repositories: [{ owner, repo, private }] }`, or `null` for an unknown installation. Uses a one-off `metadata: read` token that isn't kept. Anything but `private: false` counts as private.
 
 **Verification:** on every request, before any cached verification is trusted, `verifyRepo()` checks an installed repo through `getGitHubHeaders()`: a private repo is refused (and its `cache:issues:` entry deleted), and so is one whose installation can't be used (after one retry, so an uninstalled repo is then looked up as not installed). A public installed repo is verified without a `.roadmapper` file, with the higher of the installation's tier and the tier of a confirmed API key registered for the repo (an install never downgrades a paid key). Verifications are cached in `repo:{owner}/{repo}` with `source: 'app' | 'key'`; an `app` verification is ignored once the App is no longer installed, so the repo then needs its own `.roadmapper` file. Everyone else keeps the `.roadmapper` flow. `verifyRepo()` returns `{ verified, tier, source }`.
 
-**Case-folding:** GitHub names are case-insensitive, so `repoSlug()` (`lib/repo-slug.js`) lowercases `owner/repo` in the cache keys (`repo:`, `repo-ttl:`, `install:`, `visibility:`, `cache:issues:`, `cache:invalidated:`, the rate limit identifier). `repo-key:` is persistent registration data and keeps its registered case; key ownership is compared case-insensitively. `scripts/set-tier.js` sets the tier on the installation (covering all its repos) when the repo is installed, and on the API key when one is registered.
+**Case-folding:** GitHub names are case-insensitive, so `repoSlug()` (`lib/repo-slug.js`) lowercases `owner/repo` in the cache keys (`repo:`, `repo-ttl:`, `install:`, `visibility:`, `cache:issues:`, `cache:invalidated:`, the rate limit identifier). `repo-key:` is persistent registration data and keeps its registered case; key ownership is compared case-insensitively. `scripts/set-tier.js <owner> <repo> <tier>` sets the tier on the installation (covering all its repos, looked up via `getInstallationId()` when not cached) when the repo is installed, and on the API key when one is registered; `scripts/set-tier.js --installation <id> <tier>` sets an installation's tier directly.
+
+### GitHub App Install Flow
+
+The GitHub App is the primary way to onboard; the API key flow stays for users who can't get an App installed.
+
+- **Landing page (`api/index.js`):** when `getAppInstallUrl()` returns a URL, the Get Started section leads with an "Install the GitHub App" card (no file to commit, live updates on paid, read-only/public repos only) linking to it, and the whole key flow (register form, steps 2–3) is moved inside a collapsed `<details id="key-fallback">` "Can't install the App? Use an API key". `openKeyFallback()` opens it when the page is loaded back from email confirmation (`?confirmed=true` / `?confirm_error=`). Without the App configured (or without `GITHUB_APP_SLUG`) the page is exactly the key flow, as before.
+- **Setup page (`api/setup.js`, `GET /setup`):** the App's Setup URL (set it to `https://<domain>/setup` with "Redirect on update"). GitHub sends `?installation_id=…&setup_action=install|update`; the page lists the installation's **public** repos with their Markdown/iframe snippets and SVG/view/embed/html links (default colours), and the installation's tier (paid with webhooks configured = live updates, otherwise hourly). It needs no sign-in, so private repos are only counted, never named. `setup_action=request` (an org member asked an owner to approve) needs no id. Missing/non-numeric id → 400, unknown installation → 404, GitHub error → 502, App not configured → 404. It is read-only (doesn't map repos — the lazy lookup does that on first request) and wrapped in `withMiddleware(…, { ipRateLimitOnly: true })`; `isSvgEndpoint()` treats `/setup` as HTML.
+- **Tiers:** every installation starts on `free` (hourly soft TTL, like a free key). `paid` makes an installed repo webhook-driven (see "Webhook-driven repos"). Set it with `scripts/set-tier.js`; see `getInstallationTier()` for the billing seam.
 
 ### GitHub App Webhooks (`api/webhook.js`)
 
@@ -145,10 +156,10 @@ Only **public** repos are read through the App: paid private access isn't built 
 ### Lib Modules (`lib/`)
 
 - `lib/redis.js`: Upstash Redis client with no-op fallback when env vars not set
-- `lib/tiers.js`: Tier configuration (free: 3600s cache/60 req/hr, paid: 30s cache/10000 req/hr)
+- `lib/tiers.js`: Tier configuration (free: 3600s cache/1000 req/hr, paid: 30s cache/10000 req/hr)
 - `lib/keys.js`: Key generation, hashing, storage, lookup, email confirmation (`confirmRegistration`)
 - `lib/verify.js`: Repo verification — GitHub App installation or `.roadmapper` file, validates key, caches result
-- `lib/github-app.js`: GitHub App auth — App JWT, installation lookup, in-memory installation tokens, visibility check, `getGitHubHeaders()`; install mapping maintenance for webhooks (`addInstallationRepos`, `removeInstallationRepos`, `deleteInstallation`, `forgetRepo`); `isWebhookConfigured()`
+- `lib/github-app.js`: GitHub App auth — App JWT, installation lookup, in-memory installation tokens, visibility check, `getGitHubHeaders()`; installation tier (`getInstallationTier`, the billing seam, and `setInstallationTier`); install flow (`getAppInstallUrl`, `getInstallationRepos`); install mapping maintenance for webhooks (`addInstallationRepos`, `removeInstallationRepos`, `deleteInstallation`, `forgetRepo`); `isWebhookConfigured()`
 - `lib/repo-slug.js`: `repoSlug(owner, repo)` — lowercased `owner/repo` for Redis keys
 - `lib/cache.js`: GitHub issues response caching with ETag support, application-level freshness and webhook invalidation (`invalidateIssues`)
 - `lib/ratelimit.js`: Per-repo and per-IP rate limiting using `@upstash/ratelimit`
@@ -159,7 +170,7 @@ Only **public** repos are read through the App: paid private access isn't built 
 ### Middleware (`lib/middleware.js`)
 
 The `withMiddleware(handler, options)` higher-order function wraps all API handlers:
-1. Checks per-IP abuse backstop (200 req/hr)
+1. Checks per-IP abuse backstop (2000 req/hr)
 2. Extracts `owner/repo` from URL path
 3. Verifies repo via GitHub App installation or `.roadmapper` file (cached)
 4. Checks per-repo rate limit (tier-based)
@@ -169,7 +180,7 @@ The `withMiddleware(handler, options)` higher-order function wraps all API handl
 
 **Options:**
 - `{ skipAll: true }` — landing page (always public)
-- `{ ipRateLimitOnly: true }` — register endpoint (no repo verification)
+- `{ ipRateLimitOnly: true }` — register endpoint and GitHub App setup page (no repo verification)
 
 **Graceful fallback:** When `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are not set, middleware is skipped entirely and all endpoints work unrestricted.
 
@@ -216,7 +227,7 @@ confirm:{token}                → String (key hash, 24hr TTL, one-time use)
 cache:issues:{owner}/{repo}    → String (JSON { issues, etag, cachedAt }, no TTL)
 cache:invalidated:{owner}/{repo} → String (ms timestamp of the last webhook invalidation, 24hr TTL)
 install:{owner}/{repo}         → String (GitHub App installation id, 24hr TTL; "none" = not installed, 10min TTL)
-installation:{id}              → Hash { account, repos (JSON array of owner/repo seen), tier }
+installation:{id}              → Hash { account, repos (JSON array of owner/repo seen), tier ('free' | 'paid', default free) }
 visibility:{owner}/{repo}      → String ('public' | 'private', 60s TTL; installed repos only)
 ratelimit:*                    → Managed by @upstash/ratelimit SDK
 ```
@@ -261,7 +272,8 @@ The project uses **Jest** for testing. Tests live in the `tests/` directory.
 - `tests/lib/middleware.test.js`: Middleware passthrough, unregistered error, rate limit error, req augmentation
 - `tests/lib/tiers.test.js`: Tier configuration structure
 - `tests/lib/cache.test.js`: Issue cache format, ETag storage, `isCacheFresh` logic
-- `tests/lib/github-app.test.js`: App JWT signing, installation lookup/caching, token caching, header fallback, webhook install mapping
+- `tests/lib/github-app.test.js`: App JWT signing, installation lookup/caching, token caching, header fallback, webhook install mapping, install URL, installation tier get/set, installation repo listing
+- `tests/api-setup.test.js`: GitHub App setup page (repo listing, embed URLs, private repos counted not named, tier notice, error states)
 - `tests/api-webhook.test.js`: Webhook signature verification (raw body), installation/repository events, issue/label cache invalidation, invalidation race
 
 ### Writing Tests
@@ -289,6 +301,7 @@ The caching logic in `fetchIssues` requires Redis to be configured and a registe
 ```bash
 node scripts/set-tier.js <owner> <repo> paid    # switch to 30s cache TTL
 node scripts/set-tier.js <owner> <repo> free    # revert to 60-minute cache TTL
+node scripts/set-tier.js --installation <id> paid   # a whole GitHub App installation
 ```
 
 **Important:** `server.js` delegates the SVG endpoint to `api/roadmap.js` (wrapped with `withMiddleware`), so it uses the same caching, auth, and rate limiting as production. Without Redis credentials in `.env`, middleware is skipped entirely and `fetchIssues` receives no `cacheTtlSeconds`, bypassing all caching.
@@ -335,8 +348,8 @@ The main landing page with:
 - Logo and branding
 - How it works section
 - Live example with embedded roadmap
-- Get Started section with URL format explanation and tabbed embedding options
-- Registration form (owner, repo, email) with success/error states
+- Get Started section: "Install the GitHub App" call to action when the App is configured, with the key flow collapsed below it (see "GitHub App Install Flow")
+- Registration form (owner, repo, email) with success/error states, URL format explanation and tabbed embedding options
 - Features showcase
 - Light/dark mode theme toggle
 
@@ -410,6 +423,14 @@ POST /api/webhook
 
 Receives the GitHub App's signed webhooks; see "GitHub App Webhooks". Returns 401 for a bad signature, 503 when `GITHUB_APP_WEBHOOK_SECRET` isn't set.
 
+#### 9. GitHub App Setup Page (`api/setup.js`)
+
+```text
+GET /setup?installation_id=:id&setup_action=install
+```
+
+The App's Setup URL: lists an installation's public repos and their embed URLs after install; see "GitHub App Install Flow".
+
 ### Local Development URLs
 
 When running locally with `npm run run`, the Express server runs on port 5002:
@@ -447,6 +468,7 @@ Example: `http://localhost:5002/rocketstack-matt/roadmapper/ffffff/24292f`
 - `api/register.js`: API key registration endpoint (POST)
 - `api/confirm.js`: Email confirmation endpoint (GET)
 - `api/webhook.js`: GitHub App webhook endpoint (POST)
+- `api/setup.js`: GitHub App post-install setup page (GET)
 - `lib/redis.js`: Upstash Redis client with no-op fallback
 - `lib/email.js`: Resend email client with graceful fallback
 - `lib/analytics.js`: Google Analytics snippet and server-side events
@@ -456,7 +478,7 @@ Example: `http://localhost:5002/rocketstack-matt/roadmapper/ffffff/24292f`
 - `lib/github-app.js`: GitHub App JWT, installation tokens, per-repo auth headers
 - `lib/cache.js`: GitHub issues response caching with ETag support
 - `lib/ratelimit.js`: Per-repo and per-IP rate limiting
-- `scripts/set-tier.js`: CLI utility to update a repo's tier in Redis
+- `scripts/set-tier.js`: CLI utility to update a repo's or installation's tier in Redis
 - `lib/middleware.js`: `withMiddleware()` HOF wrapper
 - `server.js`: Local Express server for development
 - `vercel.json`: Serverless deployment configuration
@@ -475,6 +497,7 @@ Example: `http://localhost:5002/rocketstack-matt/roadmapper/ffffff/24292f`
 | `GITHUB_TOKEN` | Optional | GitHub PAT for higher API rate limits (60/hr → 5,000/hr); used for repos without the GitHub App |
 | `GITHUB_APP_ID` | Optional | GitHub App ID. With `GITHUB_APP_PRIVATE_KEY`, repos with the App installed use installation tokens |
 | `GITHUB_APP_PRIVATE_KEY` | Optional | GitHub App private key (PEM; literal `\n` escapes allowed) |
+| `GITHUB_APP_SLUG` | Optional | GitHub App slug (`github.com/apps/<slug>`). With the App vars, shows the "Install the GitHub App" option on the landing page |
 | `GITHUB_APP_WEBHOOK_SECRET` | Optional | GitHub App webhook secret. Enables `POST /api/webhook`; paid installed repos then refresh on webhooks |
 | `UPSTASH_REDIS_REST_URL` | Optional | Upstash Redis REST URL for auth, rate limiting, and caching |
 | `UPSTASH_REDIS_REST_TOKEN` | Optional | Upstash Redis REST token |
@@ -655,6 +678,7 @@ Builds multiple serverless functions:
 - `api/register.js` - Registration endpoint
 - `api/confirm.js` - Email confirmation endpoint
 - `api/webhook.js` - GitHub App webhook endpoint
+- `api/setup.js` - GitHub App setup page
 - `public/**` - Static files (logo, avatar)
 
 ### Routes
@@ -664,6 +688,7 @@ The routing is simplified - users don't need to include `/api/` in URLs:
 - `POST /api/register` → `api/register.js`
 - `GET /api/confirm` → `api/confirm.js`
 - `POST /api/webhook` → `api/webhook.js`
+- `/setup` → `api/setup.js`
 - `/:owner/:repo/:bgColor/:textColor` → `api/roadmap.js`
 - `/view/:owner/:repo/:bgColor/:textColor` → `api/view.js`
 - `/embed/:owner/:repo/:bgColor/:textColor` → `api/embed.js`

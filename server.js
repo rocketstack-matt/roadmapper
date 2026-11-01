@@ -10,6 +10,7 @@ const htmlHandler = require('./api/html');
 const registerHandler = require('./api/register');
 const confirmHandler = require('./api/confirm');
 const webhookHandler = require('./api/webhook');
+const setupHandler = require('./api/setup');
 
 const app = express();
 const PORT = process.env.PORT || 5002;
@@ -39,6 +40,11 @@ app.post('/api/register', async (req, res) => {
 // Email confirmation endpoint
 app.get('/api/confirm', async (req, res) => {
     await confirmHandler(req, res);
+});
+
+// GitHub App setup URL (where GitHub sends users after installing the App)
+app.get('/setup', async (req, res) => {
+    await setupHandler(req, res);
 });
 
 // View page handler

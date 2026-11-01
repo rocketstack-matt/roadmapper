@@ -1,11 +1,35 @@
 const { withMiddleware } = require('../lib/middleware');
 const { gaSnippet } = require('../lib/analytics');
+const { getAppInstallUrl } = require('../lib/github-app');
+const { escapeXml } = require('../roadmap');
+
+/**
+ * The primary call to action when the GitHub App is configured: install it.
+ */
+const appInstallCard = (installUrl) => `
+      <div class="app-card">
+        <h3 class="app-card-title">Install the GitHub App</h3>
+        <p class="step-description">Install Roadmapper on the repositories you want roadmaps for. That's all the setup there is.</p>
+        <ul class="app-benefits">
+          <li><strong>No file to commit</strong> — installing the App shows you own the repo, so there's no API key or <code>.roadmapper</code> file.</li>
+          <li><strong>Live updates</strong> — on the paid plan, your roadmap refreshes within seconds of an issue changing. Free installs refresh hourly.</li>
+          <li><strong>Read-only access</strong> — the App only reads the repositories you choose. Public repositories only, for now.</li>
+        </ul>
+        <a href="${escapeXml(installUrl)}" class="btn btn-primary" id="install-app-btn">Install the GitHub App</a>
+        <p class="app-card-note">Once it's installed, GitHub brings you back to Roadmapper to see your connected repos and their embed URLs.</p>
+      </div>
+
+      <details class="key-fallback" id="key-fallback">
+        <summary>Can't install the App? Use an API key</summary>
+        <p class="step-description key-fallback-intro">If you can't get approval to install a GitHub App, register your repository for an API key and commit it in a <code>.roadmapper</code> file instead.</p>
+`;
 
 const handler = async (req, res) => {
   // Detect environment: use localhost for local development, production URL otherwise
   const host = req.headers.host || 'roadmapper.rocketstack.co';
   const protocol = host.includes('localhost') ? 'http' : 'https';
   const baseUrl = `${protocol}://${host}`;
+  const installUrl = getAppInstallUrl();
 
   const html = `
 <!DOCTYPE html>
@@ -550,6 +574,66 @@ const handler = async (req, res) => {
       }
     }
 
+    /* GitHub App install */
+    .app-card {
+      background: var(--bg-primary);
+      border: 2px solid var(--accent-blue);
+      border-radius: 12px;
+      padding: 32px;
+      margin-top: 32px;
+    }
+
+    .app-card-title {
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .app-benefits {
+      margin: 0 0 24px 20px;
+      color: var(--text-secondary);
+      font-size: 15px;
+    }
+
+    .app-benefits li {
+      margin-bottom: 8px;
+    }
+
+    .app-benefits strong {
+      color: var(--text-primary);
+    }
+
+    .app-benefits code {
+      background: var(--bg-secondary);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 13px;
+    }
+
+    .app-card-note {
+      margin-top: 16px;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .key-fallback {
+      margin-top: 40px;
+      border-top: 1px solid var(--border-color);
+      padding-top: 24px;
+    }
+
+    .key-fallback summary {
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .key-fallback-intro {
+      margin-top: 12px;
+    }
+
     /* Register Form */
     .register-card {
       background: var(--bg-primary);
@@ -875,8 +959,10 @@ const handler = async (req, res) => {
   <section class="section" id="get-started">
     <div class="container">
       <h2 class="section-title">Get Started</h2>
-      <p class="section-description">Register and confirm your email, then we'll show you how to add your key and embed your roadmap</p>
-
+      <p class="section-description">${installUrl
+        ? 'Install the GitHub App on your repository, then embed your roadmap anywhere'
+        : 'Register and confirm your email, then we\'ll show you how to add your key and embed your roadmap'}</p>
+${installUrl ? appInstallCard(installUrl) : ''}
       <!-- Step 1: Register -->
       <div class="step-section">
         <span class="step-number">1</span>
@@ -1022,7 +1108,7 @@ https://roadmapper.rocketstack.co/html/your-username/your-repo/ffffff/24292f</co
         </div>
       </div>
       </div>
-    </div>
+${installUrl ? '      </details>\n' : ''}    </div>
   </section>
 
   <!-- Features -->
@@ -1142,6 +1228,12 @@ https://roadmapper.rocketstack.co/html/your-username/your-repo/ffffff/24292f</co
       return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
+    // The key registration flow is collapsed when the GitHub App is offered
+    function openKeyFallback() {
+      var fallback = document.getElementById('key-fallback');
+      if (fallback) fallback.open = true;
+    }
+
     function onPageLoad() {
       var params = new URLSearchParams(window.location.search);
 
@@ -1177,6 +1269,7 @@ https://roadmapper.rocketstack.co/html/your-username/your-repo/ffffff/24292f</co
         }
 
         // Show Steps 2 and 3
+        openKeyFallback();
         document.getElementById('steps-2-3').style.display = '';
 
         // Scroll to the Get Started section
@@ -1194,6 +1287,7 @@ https://roadmapper.rocketstack.co/html/your-username/your-repo/ffffff/24292f</co
         document.getElementById('register-error-msg').textContent = errorMsg;
         resultDiv.style.display = 'block';
         errorDiv.style.display = 'block';
+        openKeyFallback();
 
         // Scroll to the Get Started section
         document.getElementById('get-started').scrollIntoView({ behavior: 'smooth' });
