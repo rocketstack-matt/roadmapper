@@ -355,6 +355,16 @@ describe('lib/verify', () => {
       expect(await verifyRepo('owner', 'repo')).toEqual({ verified: true, tier: 'paid', source: 'app' });
     });
 
+    test('keeps a paid key for a mixed-case request', async () => {
+      store.set('installation:42', { account: 'owner', tier: 'free' });
+      store.set('repo-key:owner/repo', keyHash);
+      store.set(`apikey:${keyHash}`, { owner: 'owner', repo: 'repo', tier: 'paid' });
+
+      expect(await verifyRepo('Owner', 'Repo')).toEqual({ verified: true, tier: 'paid', source: 'app' });
+      expect(store.get('repo:owner/repo')).toEqual(expect.objectContaining({ tier: 'paid' }));
+      expect(await verifyRepo('owner', 'repo')).toEqual({ verified: true, tier: 'paid', source: 'app' });
+    });
+
     test('case-folds owner and repo in cache keys', async () => {
       await verifyRepo('Owner', 'Repo');
 
