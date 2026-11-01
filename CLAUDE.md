@@ -108,12 +108,25 @@ Roadmapper requires per-repository registration. Repo owners register via the la
 
 **Key format:** `rm_` prefix + 32 hex characters (shown once at registration, stored as SHA-256 hash)
 
+### GitHub App Authentication (`lib/github-app.js`)
+
+When `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` are set, repos where the Roadmapper GitHub App (owned by the `rocket-stack` org) is installed are read with that installation's token instead of the shared `GITHUB_TOKEN`, so each customer gets their own GitHub rate limit pool. Without those env vars nothing changes: no App lookups are made and `GITHUB_TOKEN` is used as before.
+
+- `createAppJwt()`: signs an RS256 App JWT with Node's built-in `crypto` (no JWT dependency). `iat` is backdated 60s for clock drift; `exp` is 9 minutes out. The private key may contain literal `\n` escapes (as env var UIs often store PEMs) — they are unescaped.
+- `getInstallationId(owner, repo)`: reads `install:{owner}/{repo}`; when absent, looks it up via `GET /repos/{owner}/{repo}/installation` (App JWT) and caches it for 24h, recording `installation:{id}`. A 404 caches a `none` marker for 10 minutes, so a new install is noticed quickly without a lookup on every request. Other errors (bad App credentials, outage) aren't cached and fall back to `GITHUB_TOKEN`. Lazy lookup means this works before webhooks exist; the TTLs make it self-correcting when a repo is removed from an installation.
+- `getInstallationToken(id)`: reads `install-token:{id}`; when absent, mints one via `POST /app/installations/{id}/access_tokens` and caches it until 5 minutes before its 1-hour expiry.
+- `getGitHubHeaders(owner, repo)`: **the one place GitHub auth headers come from** — the installation token if the App is installed, else `GITHUB_TOKEN`, else none. Used by `fetchIssues` (`roadmap.js`), `fetchRoadmapperFile` (`lib/verify.js`) and `api/register.js`. If the token request 404s (App uninstalled), the `install:` mapping is deleted and it falls back to `GITHUB_TOKEN`.
+- `getInstallationTier(id)`: the `tier` on `installation:{id}`, default `free`.
+
+**Verification:** `verifyRepo()` treats a repo with the App installed as verified without a `.roadmapper` file, using the installation's tier (cached in `repo:{owner}/{repo}` like any verification). Everyone else keeps the `.roadmapper` flow. `scripts/set-tier.js` sets the tier on the installation (covering all its repos) when the repo is installed, and on the API key when one is registered.
+
 ### Lib Modules (`lib/`)
 
 - `lib/redis.js`: Upstash Redis client with no-op fallback when env vars not set
 - `lib/tiers.js`: Tier configuration (free: 3600s cache/60 req/hr, paid: 30s cache/10000 req/hr)
 - `lib/keys.js`: Key generation, hashing, storage, lookup, email confirmation (`confirmRegistration`)
-- `lib/verify.js`: Repo verification — fetches `.roadmapper` file, validates key, caches result
+- `lib/verify.js`: Repo verification — GitHub App installation or `.roadmapper` file, validates key, caches result
+- `lib/github-app.js`: GitHub App auth — App JWT, installation lookup, installation token cache, `getGitHubHeaders()`
 - `lib/cache.js`: GitHub issues response caching with ETag support and application-level freshness
 - `lib/ratelimit.js`: Per-repo and per-IP rate limiting using `@upstash/ratelimit`
 - `lib/email.js`: Resend email client with graceful fallback (`isEmailConfigured`, `sendConfirmationEmail`)
@@ -125,7 +138,7 @@ Roadmapper requires per-repository registration. Repo owners register via the la
 The `withMiddleware(handler, options)` higher-order function wraps all API handlers:
 1. Checks per-IP abuse backstop (200 req/hr)
 2. Extracts `owner/repo` from URL path
-3. Verifies repo via `.roadmapper` file (cached)
+3. Verifies repo via GitHub App installation or `.roadmapper` file (cached)
 4. Checks per-repo rate limit (tier-based)
 5. Sets `X-RateLimit-*` response headers
 6. Attaches `req.tier` and `req.cacheTtl` to request
@@ -177,6 +190,9 @@ repo-key:{owner}/{repo}        → String (key hash, for duplicate checking)
 repo-ttl:{owner}/{repo}        → String (TTL marker, expires after 24hr)
 confirm:{token}                → String (key hash, 24hr TTL, one-time use)
 cache:issues:{owner}/{repo}    → String (JSON { issues, etag, cachedAt }, no TTL)
+install:{owner}/{repo}         → String (GitHub App installation id, 24hr TTL; "none" = not installed, 10min TTL)
+installation:{id}              → Hash { account, repos (JSON array of owner/repo seen), tier }
+install-token:{id}             → String (installation access token, expires 5min before GitHub's 1hr expiry)
 ratelimit:*                    → Managed by @upstash/ratelimit SDK
 ```
 
@@ -218,6 +234,7 @@ The project uses **Jest** for testing. Tests live in the `tests/` directory.
 - `tests/lib/middleware.test.js`: Middleware passthrough, unregistered error, rate limit error, req augmentation
 - `tests/lib/tiers.test.js`: Tier configuration structure
 - `tests/lib/cache.test.js`: Issue cache format, ETag storage, `isCacheFresh` logic
+- `tests/lib/github-app.test.js`: App JWT signing, installation lookup/caching, token caching, header fallback
 
 ### Writing Tests
 
@@ -398,7 +415,8 @@ Example: `http://localhost:5002/rocketstack-matt/roadmapper/ffffff/24292f`
 - `lib/analytics.js`: Google Analytics snippet and server-side events
 - `lib/tiers.js`: Tier configuration (limits, cache TTLs)
 - `lib/keys.js`: API key generation, hashing, storage, lookup
-- `lib/verify.js`: Repo verification via `.roadmapper` file
+- `lib/verify.js`: Repo verification via GitHub App installation or `.roadmapper` file
+- `lib/github-app.js`: GitHub App JWT, installation tokens, per-repo auth headers
 - `lib/cache.js`: GitHub issues response caching with ETag support
 - `lib/ratelimit.js`: Per-repo and per-IP rate limiting
 - `scripts/set-tier.js`: CLI utility to update a repo's tier in Redis
@@ -417,7 +435,9 @@ Example: `http://localhost:5002/rocketstack-matt/roadmapper/ffffff/24292f`
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `GITHUB_TOKEN` | Optional | GitHub PAT for higher API rate limits (60/hr → 5,000/hr) |
+| `GITHUB_TOKEN` | Optional | GitHub PAT for higher API rate limits (60/hr → 5,000/hr); used for repos without the GitHub App |
+| `GITHUB_APP_ID` | Optional | GitHub App ID. With `GITHUB_APP_PRIVATE_KEY`, repos with the App installed use installation tokens |
+| `GITHUB_APP_PRIVATE_KEY` | Optional | GitHub App private key (PEM; literal `\n` escapes allowed) |
 | `UPSTASH_REDIS_REST_URL` | Optional | Upstash Redis REST URL for auth, rate limiting, and caching |
 | `UPSTASH_REDIS_REST_TOKEN` | Optional | Upstash Redis REST token |
 | `RESEND_API_KEY` | Optional | Resend API key for email confirmation. Without it: keys work immediately |
@@ -445,7 +465,7 @@ The service supports optional GitHub authentication via environment variable:
 - Token scope required: `public_repo` (read access to public repositories)
 - The `fetchIssues()` function in `roadmap.js` automatically uses the token if available
 
-The token is server-side only and never exposed to users. All users share the same rate limit pool (5,000/hour when authenticated).
+The token is server-side only and never exposed to users. All repos without the GitHub App share the same rate limit pool (5,000/hour when authenticated); repos with the App installed use their installation's own pool instead (see "GitHub App Authentication").
 
 ### SVG Generation
 

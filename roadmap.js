@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { getGitHubHeaders } = require('./lib/github-app');
 
 // Layout constants
 const COLUMN_HEADER_HEIGHT = 130;
@@ -423,10 +424,7 @@ const fetchIssuesForLabel = async (owner, repo, label, headers) => {
 // issue number (an issue may carry more than one roadmap label). The merged
 // result is stripped to the fields the renderer needs before being returned.
 const fetchRoadmapIssues = async (owner, repo) => {
-    const headers = {};
-    if (process.env.GITHUB_TOKEN) {
-        headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
-    }
+    const headers = await getGitHubHeaders(owner, repo);
 
     // Fetch the (small, fixed) label set concurrently to cut latency.
     const perLabel = await Promise.all(

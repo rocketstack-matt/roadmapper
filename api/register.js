@@ -3,6 +3,7 @@ const axios = require('axios');
 const { withMiddleware } = require('../lib/middleware');
 const { generateApiKey, storeApiKey, keyExistsForRepo, storeConfirmToken } = require('../lib/keys');
 const { sendConfirmationEmail, isEmailConfigured } = require('../lib/email');
+const { getGitHubHeaders } = require('../lib/github-app');
 
 const handler = async (req, res) => {
   // Only accept POST requests
@@ -46,10 +47,7 @@ const handler = async (req, res) => {
 
   // Verify the GitHub repo exists
   try {
-    const headers = {};
-    if (process.env.GITHUB_TOKEN) {
-      headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
-    }
+    const headers = await getGitHubHeaders(owner, repo);
     await axios.get(`https://api.github.com/repos/${owner}/${repo}`, { headers });
   } catch (error) {
     if (error.response && error.response.status === 404) {

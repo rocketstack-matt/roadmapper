@@ -78,7 +78,7 @@
                     ]
                 },
                 "api-key-authentication": {
-                    "description": "Verifies API key via .roadmapper file",
+                    "description": "Verifies the repo via GitHub App installation or API key in .roadmapper file",
                     "requirements": [
                         {
                             "requirement-url": "architecture/controls/api-key-authentication.control.json",
@@ -223,7 +223,7 @@
                     ]
                 },
                 "api-key-authentication": {
-                    "description": "Verifies API keys via .roadmapper file",
+                    "description": "Verifies repos via GitHub App installation or API keys in .roadmapper file",
                     "requirements": [
                         {
                             "requirement-url": "architecture/controls/api-key-authentication.control.json",
@@ -263,7 +263,7 @@
             "unique-id": "github-api",
             "node-type": "service",
             "name": "GitHub API",
-            "description": "External GitHub REST API for fetching repository issues and verifying .roadmapper file",
+            "description": "External GitHub REST API for fetching repository issues, verifying .roadmapper file, and looking up GitHub App installations and installation tokens",
             "interfaces": [
                 {
                     "unique-id": "github-issues-api",
@@ -272,6 +272,11 @@
                 },
                 {
                     "unique-id": "github-contents-api",
+                    "host": "api.github.com",
+                    "port": 443
+                },
+                {
+                    "unique-id": "github-app-api",
                     "host": "api.github.com",
                     "port": 443
                 }

@@ -200,4 +200,55 @@ describe('lib/verify', () => {
       expect(result.verified).toBe(true);
     });
   });
+
+  describe('verifyRepo with the GitHub App installed', () => {
+    const { privateKey } = require('crypto').generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+    });
+    const originalEnv = process.env;
+
+    beforeEach(() => {
+      process.env = { ...originalEnv, GITHUB_APP_ID: '12345', GITHUB_APP_PRIVATE_KEY: privateKey };
+      redis.get.mockResolvedValue(null);
+      redis.hgetall.mockImplementation((key) =>
+        Promise.resolve(key === 'installation:42' ? { account: 'owner', tier: 'paid' } : null)
+      );
+    });
+
+    afterEach(() => {
+      process.env = originalEnv;
+      redis.hgetall.mockImplementation(() => Promise.resolve(null));
+    });
+
+    test('verifies an installed repo with the installation tier, without a .roadmapper file', async () => {
+      axios.get.mockImplementation((url) => (url.endsWith('/repos/owner/repo/installation')
+        ? Promise.resolve({ data: { id: 42, account: { login: 'owner' } } })
+        : Promise.reject({ response: { status: 404 } })));
+
+      const result = await verifyRepo('owner', 'repo');
+
+      expect(result).toEqual({ verified: true, tier: 'paid' });
+      expect(axios.get).not.toHaveBeenCalledWith(expect.stringContaining('/contents/.roadmapper'), expect.anything());
+      expect(redis.hset).toHaveBeenCalledWith('repo:owner/repo', expect.objectContaining({ tier: 'paid' }));
+    });
+
+    test('falls back to the .roadmapper file when the App is not installed', async () => {
+      axios.get.mockImplementation((url) => (url.endsWith('/installation')
+        ? Promise.reject({ response: { status: 404 } })
+        : Promise.resolve({ data: { content: Buffer.from(validKey).toString('base64') } })));
+      redis.hgetall.mockImplementation((key) =>
+        Promise.resolve(key === `apikey:${keyHash}` ? { owner: 'owner', repo: 'repo', tier: 'free' } : null)
+      );
+
+      const result = await verifyRepo('owner', 'repo');
+
+      expect(result).toEqual({ verified: true, tier: 'free' });
+      expect(axios.get).toHaveBeenCalledWith(
+        'https://api.github.com/repos/owner/repo/contents/.roadmapper',
+        expect.anything()
+      );
+    });
+  });
 });
