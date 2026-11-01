@@ -932,8 +932,10 @@ const handler = async (req, res) => {
         </div>
         <div class="step">
           <div class="step-number">2</div>
-          <h3 class="step-title">Generate Your Roadmap</h3>
-          <p class="step-description">Use our simple URL format with your repository details</p>
+          <h3 class="step-title">${installUrl ? 'Install the GitHub App' : 'Generate Your Roadmap'}</h3>
+          <p class="step-description">${installUrl
+            ? 'Install the Roadmapper GitHub App on your repository to get your roadmap and embed links'
+            : 'Register your repository for an API key, then use your roadmap URL'}</p>
         </div>
         <div class="step">
           <div class="step-number">3</div>
