@@ -347,6 +347,8 @@ node scripts/set-tier.js --installation <installation-id> free   # back to free
 
 The installation id is the number in the installation's settings URL (`github.com/settings/installations/<id>`, or `github.com/organizations/<org>/settings/installations/<id>`) and in the setup page URL. The new tier applies on each repo's next request.
 
+The `<owner> <repo>` form finds the repo's installation from the mapping cached in Redis, so it needs only the Upstash credentials once the repo has been requested; with nothing cached it looks it up on GitHub, which needs `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY`. If it can't tell whether the repo is installed it says so and exits with an error instead of reporting success: use `--installation <id>` then.
+
 ## License
 
 Apache 2.0 - See [LICENSE](LICENSE) file for details.
