@@ -31,7 +31,7 @@ const handler = async (req, res) => {
 
   try {
     const issues = await fetchIssues(owner, repo, req.cacheTtl);
-    const svgContent = generateRoadmapSVG(issues, bgColor, textColor);
+    const svgContent = generateRoadmapSVG(issues, bgColor, textColor, { showCacheNotice: req.tier !== 'paid' });
 
     trackEvent('roadmap_view', {
       client_id: (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').split(',')[0].trim(),

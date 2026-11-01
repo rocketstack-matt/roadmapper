@@ -156,3 +156,24 @@ describe('api/view', () => {
     expect(res.body).toContain("const currentText = '00ff00'");
   });
 });
+
+describe('api/view cache notice', () => {
+  test('shows the 60-minute cache notice by default', async () => {
+    const req = createMockReq('/view/owner/repo/ffffff/24292f');
+    const res = createMockRes();
+
+    await viewHandler(req, res);
+
+    expect(res.body).toContain('Roadmaps are cached for 60 minutes');
+  });
+
+  test('hides the cache notice for paid repos', async () => {
+    const req = createMockReq('/view/owner/repo/ffffff/24292f');
+    req.tier = 'paid';
+    const res = createMockRes();
+
+    await viewHandler(req, res);
+
+    expect(res.body).not.toContain('Roadmaps are cached for 60 minutes');
+  });
+});

@@ -305,7 +305,10 @@ const createColumn = (title, subtitle, cards, xPosition, className, headerColor,
   </g>`;
 };
 
-const generateRoadmapSVG = (issues, bgColor, textColor) => {
+// Paid repos refresh far more often than hourly, so callers pass
+// `showCacheNotice: false` for them to drop the footer notice. The footer's
+// space is kept so the SVG's height (and embed image map scaling) is unchanged.
+const generateRoadmapSVG = (issues, bgColor, textColor, { showCacheNotice = true } = {}) => {
     // Sort issues by number
     issues.sort((a, b) => a.number - b.number);
 
@@ -380,7 +383,7 @@ const generateRoadmapSVG = (issues, bgColor, textColor) => {
       ${createColumn('Now', "We're working on it right now", layout.cards.now, 0, 'now', headerColor, subheaderColor, backgroundColor, cardBackground, cardTextColor, shadowColor, hoverShadowColor)}
       ${createColumn('Next', "Coming up next", layout.cards.next, 380, 'next', headerColor, subheaderColor, backgroundColor, cardBackground, cardTextColor, shadowColor, hoverShadowColor)}
       ${createColumn('Later', "On the horizon", layout.cards.later, 760, 'later', headerColor, subheaderColor, backgroundColor, cardBackground, cardTextColor, shadowColor, hoverShadowColor)}
-      <text x="570" y="${footerY + 15}" style="font-size: 12px; text-anchor: middle; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-weight: 400; fill: ${subheaderColor};">Roadmaps are cached for 60 minutes</text>
+      ${showCacheNotice ? `<text x="570" y="${footerY + 15}" style="font-size: 12px; text-anchor: middle; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-weight: 400; fill: ${subheaderColor};">Roadmaps are cached for 60 minutes</text>` : ''}
     </svg>
   `;
 };

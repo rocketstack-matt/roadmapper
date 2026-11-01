@@ -46,7 +46,23 @@ describe('api/roadmap', () => {
     expect(generateRoadmapSVG).toHaveBeenCalledWith(
       helpers.mockIssues,
       'ff0000',
-      '00ff00'
+      '00ff00',
+      { showCacheNotice: true }
+    );
+  });
+
+  test('hides the cache notice for paid repos', async () => {
+    const req = createMockReq('/owner/repo/ffffff/24292f');
+    req.tier = 'paid';
+    const res = createMockRes();
+
+    await roadmapHandler(req, res);
+
+    expect(generateRoadmapSVG).toHaveBeenCalledWith(
+      helpers.mockIssues,
+      'ffffff',
+      '24292f',
+      { showCacheNotice: false }
     );
   });
 

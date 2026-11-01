@@ -538,6 +538,7 @@ The SVG is generated server-side and includes:
 - Responsive design (viewBox-based)
 - Label color accent borders (extracted from GitHub API)
 - Dynamic height based on number of issues in each column
+- A "Roadmaps are cached for 60 minutes" footer, omitted for paid repos (`generateRoadmapSVG(…, { showCacheNotice: false })`, passed by `api/roadmap.js` when `req.tier` is `paid`; `api/view.js` drops its matching footer line the same way). The footer space stays so the SVG height is unchanged
 
 ### URL Pattern Matching
 
