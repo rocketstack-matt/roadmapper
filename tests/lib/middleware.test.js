@@ -83,6 +83,10 @@ describe('lib/middleware', () => {
     test('returns false for html URL', () => {
       expect(isSvgEndpoint('/html/owner/repo/ffffff/24292f')).toBe(false);
     });
+
+    test('returns false for the GitHub App setup page', () => {
+      expect(isSvgEndpoint('/setup?installation_id=42&setup_action=install')).toBe(false);
+    });
   });
 
   describe('withMiddleware', () => {

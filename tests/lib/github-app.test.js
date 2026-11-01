@@ -24,6 +24,9 @@ const {
   getInstallationId,
   getInstallationToken,
   getInstallationTier,
+  setInstallationTier,
+  getInstallationRepos,
+  getAppInstallUrl,
   getGitHubHeaders,
   clearTokenCache,
   PrivateRepoError,
@@ -214,11 +217,105 @@ describe('lib/github-app', () => {
     });
   });
 
+  describe('getAppInstallUrl', () => {
+    test('links to the App install page from its slug', () => {
+      process.env.GITHUB_APP_SLUG = ' roadmapper-app\n';
+      expect(getAppInstallUrl()).toBe('https://github.com/apps/roadmapper-app/installations/new');
+    });
+
+    test('null without a slug or without App credentials', () => {
+      delete process.env.GITHUB_APP_SLUG;
+      expect(getAppInstallUrl()).toBeNull();
+      process.env.GITHUB_APP_SLUG = 'roadmapper-app';
+      delete process.env.GITHUB_APP_ID;
+      expect(getAppInstallUrl()).toBeNull();
+    });
+  });
+
   describe('getInstallationTier', () => {
     test('returns the installation tier, defaulting to free', async () => {
       expect(await getInstallationTier('42')).toBe('free');
       mockStore.set('installation:42', { tier: 'paid' });
       expect(await getInstallationTier('42')).toBe('paid');
+    });
+
+    test('an unknown tier counts as free', async () => {
+      mockStore.set('installation:42', { tier: 'platinum' });
+      expect(await getInstallationTier('42')).toBe('free');
+    });
+  });
+
+  describe('setInstallationTier', () => {
+    test('sets the tier and clears the verification of every repo it covers', async () => {
+      mockStore.set('installation:42', { account: 'owner', repos: '["owner/a","owner/b"]', tier: 'free' });
+      mockStore.set('repo:owner/a', { tier: 'free', source: 'app' });
+      mockStore.set('repo-ttl:owner/a', '1');
+      mockStore.set('repo:owner/b', { tier: 'free', source: 'app' });
+
+      expect(await setInstallationTier('42', 'paid')).toEqual(['owner/a', 'owner/b']);
+
+      expect(await getInstallationTier('42')).toBe('paid');
+      expect(mockStore.get('installation:42').account).toBe('owner');
+      expect(mockStore.has('repo:owner/a')).toBe(false);
+      expect(mockStore.has('repo-ttl:owner/a')).toBe(false);
+      expect(mockStore.has('repo:owner/b')).toBe(false);
+    });
+
+    test('records the tier for an installation not seen yet, which a later lookup keeps', async () => {
+      await setInstallationTier('42', 'paid');
+      mockInstalled();
+      await getInstallationId('owner', 'repo');
+
+      expect(mockStore.get('installation:42')).toEqual({ account: 'owner', repos: '["owner/repo"]', tier: 'paid' });
+    });
+
+    test('rejects an unknown tier', async () => {
+      await expect(setInstallationTier('42', 'platinum')).rejects.toThrow('Invalid tier');
+      expect(mockStore.has('installation:42')).toBe(false);
+    });
+  });
+
+  describe('getInstallationRepos', () => {
+    const repos = (count, start = 0) => Array.from({ length: count }, (_, i) => ({ full_name: `owner/r${start + i}`, private: false }));
+
+    test('lists the account and repos, paginating, with a metadata-only token', async () => {
+      axios.get.mockImplementation(async (url) => {
+        if (url.endsWith('/app/installations/42')) return { data: { id: 42, account: { login: 'Owner' } } };
+        if (url.endsWith('page=1')) return { data: { repositories: repos(100) } };
+        return { data: { repositories: [{ full_name: 'owner/secret', private: true }, { full_name: 'owner/odd' }] } };
+      });
+      axios.post.mockResolvedValue({ data: { token: 'ghs_list', expires_at: inAnHour() } });
+
+      const result = await getInstallationRepos('42');
+
+      expect(result.account).toBe('Owner');
+      expect(result.repositories).toHaveLength(102);
+      expect(result.repositories[0]).toEqual({ owner: 'owner', repo: 'r0', private: false });
+      // Anything without an explicit private: false counts as private
+      expect(result.repositories.slice(100)).toEqual([
+        { owner: 'owner', repo: 'secret', private: true },
+        { owner: 'owner', repo: 'odd', private: true },
+      ]);
+      expect(axios.post).toHaveBeenCalledWith(
+        'https://api.github.com/app/installations/42/access_tokens',
+        { permissions: { metadata: 'read' } },
+        expect.anything()
+      );
+      expect(axios.get).toHaveBeenCalledWith(
+        'https://api.github.com/installation/repositories?per_page=100&page=2',
+        { headers: expect.objectContaining({ Authorization: 'Bearer ghs_list' }) }
+      );
+    });
+
+    test('null for an installation that does not exist', async () => {
+      axios.get.mockRejectedValue(notFound());
+      expect(await getInstallationRepos('42')).toBeNull();
+      expect(axios.post).not.toHaveBeenCalled();
+    });
+
+    test('other errors are thrown', async () => {
+      axios.get.mockRejectedValue(new Error('boom'));
+      await expect(getInstallationRepos('42')).rejects.toThrow('boom');
     });
   });
 

@@ -1,0 +1,186 @@
+const { withMiddleware } = require('../lib/middleware');
+const { gaSnippet } = require('../lib/analytics');
+const { escapeXml } = require('../roadmap');
+const { TIERS } = require('../lib/tiers');
+const {
+  isAppConfigured,
+  isWebhookConfigured,
+  getInstallationRepos,
+  getInstallationTier,
+} = require('../lib/github-app');
+
+const DEFAULT_COLORS = 'ffffff/24292f';
+
+const page = (title, body) => `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">${gaSnippet()}
+  <title>${title} - Roadmapper</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f6f8fa;
+      --text-primary: #1a1a1a;
+      --text-secondary: #57606a;
+      --border-color: #e0e0e0;
+      --accent-blue: #1E88E5;
+      --accent-teal: #26A69A;
+      --accent-green: #66BB6A;
+    }
+    [data-theme="dark"] {
+      --bg-primary: #0d1117;
+      --bg-secondary: #161b22;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --border-color: #30363d;
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; line-height: 1.6; color: var(--text-primary); background: var(--bg-secondary); }
+    .container { max-width: 860px; margin: 0 auto; padding: 32px 20px 64px; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
+    .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 700; font-size: 20px; background: linear-gradient(135deg, var(--accent-blue), var(--accent-teal), var(--accent-green)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .logo img { width: 36px; height: 36px; }
+    .theme-toggle { background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 14px; }
+    h1 { font-size: 28px; margin-bottom: 8px; }
+    .lead { color: var(--text-secondary); margin-bottom: 24px; }
+    .notice { background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px 20px; margin-bottom: 24px; color: var(--text-secondary); font-size: 14px; }
+    .notice strong { color: var(--text-primary); }
+    .repo { background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+    .repo h2 { font-size: 18px; margin-bottom: 12px; word-break: break-all; }
+    .label { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin: 12px 0 6px; }
+    .code-row { display: flex; gap: 12px; align-items: flex-start; }
+    code { flex: 1; display: block; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; padding: 10px 12px; font-size: 13px; white-space: pre-wrap; word-break: break-all; }
+    .copy-btn { background: linear-gradient(135deg, var(--accent-blue), var(--accent-teal)); color: white; border: none; border-radius: 6px; padding: 8px 14px; cursor: pointer; font-size: 13px; font-weight: 600; }
+    .links { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; font-size: 14px; }
+    a { color: var(--accent-blue); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <a class="logo" href="/"><img src="/logo.svg" alt="">Roadmapper</a>
+      <button class="theme-toggle" onclick="toggleTheme()"><span id="theme-icon">🌙</span></button>
+    </header>
+    ${body}
+  </div>
+  <script>
+    function updateThemeIcon(theme) {
+      document.getElementById('theme-icon').textContent = theme === 'dark' ? '☀️' : '🌙';
+    }
+    function toggleTheme() {
+      var theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('theme', theme);
+      updateThemeIcon(theme);
+    }
+    var savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    updateThemeIcon(savedTheme);
+    function copyCode(id, btn) {
+      navigator.clipboard.writeText(document.getElementById(id).textContent).then(function () {
+        btn.textContent = 'Copied!';
+        setTimeout(function () { btn.textContent = 'Copy'; }, 2000);
+      });
+    }
+  </script>
+</body>
+</html>`;
+
+const send = (res, status, title, body) => {
+  res.status(status);
+  res.setHeader('Content-Type', 'text/html');
+  res.send(page(escapeXml(title), body));
+};
+
+const message = (res, status, title, text) => send(res, status, title,
+  `<h1>${escapeXml(title)}</h1><p class="lead">${text}</p><p><a href="/">Back to Roadmapper</a></p>`);
+
+const repoCard = (baseUrl, { owner, repo }, index) => {
+  const path = `${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
+  const image = `${baseUrl}/${path}/${DEFAULT_COLORS}`;
+  const view = `${baseUrl}/view/${path}/${DEFAULT_COLORS}`;
+  const embed = `${baseUrl}/embed/${path}/${DEFAULT_COLORS}`;
+  const markdown = `[![Roadmap](${image})](${view})`;
+  const iframe = `<iframe src="${embed}" width="100%" height="520" frameborder="0"></iframe>`;
+  return `
+    <div class="repo">
+      <h2>${escapeXml(`${owner}/${repo}`)}</h2>
+      <div class="label">GitHub README (Markdown)</div>
+      <div class="code-row"><code id="md-${index}">${escapeXml(markdown)}</code><button class="copy-btn" onclick="copyCode('md-${index}', this)">Copy</button></div>
+      <div class="label">Website (iframe)</div>
+      <div class="code-row"><code id="iframe-${index}">${escapeXml(iframe)}</code><button class="copy-btn" onclick="copyCode('iframe-${index}', this)">Copy</button></div>
+      <div class="links">
+        <a href="${escapeXml(image)}" target="_blank">SVG image</a>
+        <a href="${escapeXml(view)}" target="_blank">Interactive viewer</a>
+        <a href="${escapeXml(embed)}" target="_blank">Embed page</a>
+        <a href="${escapeXml(`${baseUrl}/html/${path}/${DEFAULT_COLORS}`)}" target="_blank">HTML image map</a>
+      </div>
+    </div>`;
+};
+
+/**
+ * The GitHub App's setup URL: GitHub sends the user here after they install
+ * the App (or change its repos) with ?installation_id=…&setup_action=….
+ * Lists the installation's public repos and their embed URLs. Private repos
+ * are only counted, never named: this page needs no sign-in.
+ */
+const handler = async (req, res) => {
+  const host = req.headers.host || 'roadmapper.rocketstack.co';
+  const protocol = host.includes('localhost') ? 'http' : 'https';
+  const baseUrl = `${protocol}://${host}`;
+
+  if (!isAppConfigured()) {
+    return message(res, 404, 'GitHub App not available', 'The Roadmapper GitHub App isn\'t set up on this server.');
+  }
+
+  const params = new URL(req.url, baseUrl).searchParams;
+  if (params.get('setup_action') === 'request') {
+    return message(res, 200, 'Installation requested',
+      'An owner of the organization needs to approve the Roadmapper GitHub App. Once they have, your roadmaps work straight away, with no file to commit.');
+  }
+
+  const installationId = params.get('installation_id') || '';
+  if (!/^\d+$/.test(installationId)) {
+    return message(res, 400, 'No installation given', 'Install the Roadmapper GitHub App from the <a href="/#get-started">Get Started</a> section and GitHub will bring you back here.');
+  }
+
+  let installation;
+  let tier;
+  try {
+    installation = await getInstallationRepos(installationId);
+    tier = installation && await getInstallationTier(installationId);
+  } catch (error) {
+    console.error(`Setup page lookup failed for installation ${installationId}: ${error.message}`);
+    return message(res, 502, 'Couldn\'t reach GitHub', 'We couldn\'t read this installation from GitHub. Please refresh the page in a moment.');
+  }
+  if (!installation) {
+    return message(res, 404, 'Installation not found', 'This GitHub App installation doesn\'t exist, or the App has been uninstalled.');
+  }
+
+  const publicRepos = installation.repositories.filter(r => !r.private);
+  const privateCount = installation.repositories.length - publicRepos.length;
+  const account = installation.account ? ` for <strong>${escapeXml(installation.account)}</strong>` : '';
+
+  const paidNotice = isWebhookConfigured()
+    ? '<strong>Paid plan:</strong> roadmaps update within seconds of an issue changing.'
+    : `<strong>Paid plan:</strong> roadmaps refresh every ${TIERS.paid.cacheTtl} seconds.`;
+  const tierNotice = tier === 'paid'
+    ? paidNotice
+    : '<strong>Free plan:</strong> roadmaps refresh hourly. The paid plan updates them within seconds of an issue changing — <a href="https://github.com/rocketstack-matt/roadmapper/issues" target="_blank">get in touch</a> to upgrade.';
+  const privateNotice = privateCount
+    ? `<div class="notice">${privateCount} private ${privateCount === 1 ? 'repository is' : 'repositories are'} not shown: Roadmapper only serves public repositories for now.</div>`
+    : '';
+  const repos = publicRepos.length
+    ? publicRepos.map((r, i) => repoCard(baseUrl, r, i)).join('')
+    : '<div class="notice">No public repositories are connected yet. Add one from the App\'s settings on GitHub and refresh this page.</div>';
+
+  send(res, 200, 'GitHub App installed', `
+    <h1>Roadmapper is installed</h1>
+    <p class="lead">The GitHub App is connected${account}. There's no file to commit: label issues with <strong>Roadmap: Now</strong>, <strong>Roadmap: Next</strong> or <strong>Roadmap: Later</strong> and embed your roadmap with the URLs below.</p>
+    <div class="notice">${tierNotice}</div>
+    ${privateNotice}
+    ${repos}`);
+};
+
+module.exports = withMiddleware(handler, { ipRateLimitOnly: true });

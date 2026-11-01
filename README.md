@@ -41,26 +41,31 @@ Here's what this project's roadmap looks like:
 
 ## Getting Started
 
-1. **Register your repository** at [roadmapper.rocketstack.co](https://roadmapper.rocketstack.co) — enter your GitHub owner, repo name, and email to receive your API key.
+1. **Install the Roadmapper GitHub App** from the Get Started section at [roadmapper.rocketstack.co](https://roadmapper.rocketstack.co) and choose the repositories you want roadmaps for. There's no key and no file to commit: installing the App shows you own the repo. GitHub then sends you to a setup page listing your connected repos and their embed URLs. Only public repositories are supported for now.
 
-2. **Confirm your email** — click the confirmation link sent to your email. Your key activates after confirmation (the link expires in 24 hours).
+   **Can't install the App?** If you can't get approval to install a GitHub App on your organization, use an API key instead — see [Using an API key instead](#using-an-api-key-instead).
 
-3. **Add a `.roadmapper` file** to the root of your repository containing the API key you received. Commit and push.
-
-4. **Label your issues**: Add one of these labels to your GitHub issues:
+2. **Label your issues**: Add one of these labels to your GitHub issues:
    - <span style="display: inline-block; padding: 2px 8px; font-size: 12px; font-weight: 600; line-height: 18px; border-radius: 12px; background: #2da44e; color: white;">Roadmap: Now</span> - Top priority items you're working on right now
    - <span style="display: inline-block; padding: 2px 8px; font-size: 12px; font-weight: 600; line-height: 18px; border-radius: 12px; background: #fb8500; color: white;">Roadmap: Next</span> - Next priority items planned for soon
    - <span style="display: inline-block; padding: 2px 8px; font-size: 12px; font-weight: 600; line-height: 18px; border-radius: 12px; background: #8b949e; color: white;">Roadmap: Later</span> - Longer-term items under consideration
 
-5. **Embed your roadmap**: Use the URL format:
+3. **Embed your roadmap**: Use the URL format:
    ```
    https://roadmapper.rocketstack.co/{owner}/{repo}/{bgColor}/{textColor}
    ```
 
-6. **Add to your README**: Link to the interactive viewer page where users can click on items:
+4. **Add to your README**: Link to the interactive viewer page where users can click on items:
    ```markdown
    [![Roadmap](https://roadmapper.rocketstack.co/owner/repo/ffffff/24292f)](https://roadmapper.rocketstack.co/view/owner/repo/ffffff/24292f)
    ```
+
+### Using an API key instead
+
+1. **Register your repository** in the "Can't install the App? Use an API key" section at [roadmapper.rocketstack.co](https://roadmapper.rocketstack.co) — enter your GitHub owner, repo name, and email to receive your API key.
+2. **Confirm your email** — click the confirmation link sent to your email. Your key activates after confirmation (the link expires in 24 hours).
+3. **Add a `.roadmapper` file** to the root of your repository containing the API key you received (see below). Commit and push.
+4. Label your issues and embed your roadmap as above.
 
 ### The `.roadmapper` File
 
@@ -203,6 +208,7 @@ This project can be deployed to any serverless platform that supports Node.js:
    - `GITHUB_APP_ID` — GitHub App ID (optional; with the private key, repos that install the App are read with their own installation token and need no `.roadmapper` file)
    - `GITHUB_APP_PRIVATE_KEY` — GitHub App private key in PEM format (literal `\n` escapes are accepted)
    - `GITHUB_APP_WEBHOOK_SECRET` — GitHub App webhook secret (optional; enables `POST /api/webhook`, which refreshes paid installed repos within seconds of a change)
+   - `GITHUB_APP_SLUG` — the App's slug, from `https://github.com/apps/<slug>` (optional; with the App variables, shows "Install the GitHub App" on the landing page)
    - `UPSTASH_REDIS_REST_URL` — Upstash Redis REST URL (required for registration, rate limiting, caching)
    - `UPSTASH_REDIS_REST_TOKEN` — Upstash Redis REST token
    - `RESEND_API_KEY` — Resend API key (optional, enables email confirmation on registration)
@@ -262,9 +268,11 @@ Roadmapper uses per-repository rate limiting and response caching:
 
 | Tier | Roadmap Refresh | Rate Limit |
 |------|-----------------|------------|
-| Free (registered) | Every 60 minutes | 60 requests/hour |
-| Paid (coming soon) | Every 30 seconds | ~Unlimited |
+| Free (App installed or API key) | Every 60 minutes | 1,000 requests/hour |
+| Paid, with an API key | Every 30 seconds | ~Unlimited |
 | Paid, with the GitHub App installed | Within seconds of an issue changing | ~Unlimited |
+
+Every install and registration starts on the free tier. Paid plans are arranged directly with us for now (no GitHub Marketplace listing yet) — [get in touch](https://github.com/rocketstack-matt/roadmapper/issues). A paid GitHub App installation covers every repo in it.
 
 The cache TTL controls how often your roadmap data refreshes from GitHub. All viewers within the cache window see the same cached response. The rate limit is a secondary protection against abuse.
 
@@ -314,17 +322,32 @@ Only public repos are served through the App. A private repo in an installation 
    - **Issues**: Read — to fetch roadmap issues
    - **Metadata**: Read — required by GitHub for every App
    - **Contents**: Read — to read `.roadmapper` files
-2. **Set up the webhook** (optional, but needed for real-time updates):
+2. **Set the Setup URL** to `https://<your-domain>/setup` and tick **Redirect on update**. After installing (or changing which repos the App can read) GitHub sends the user there, to a page listing the installation's public repos and their embed URLs. The page needs no sign-in, so it never names private repos, only counts them.
+3. **Set up the webhook** (optional, but needed for real-time updates):
    - **Webhook URL**: `https://<your-domain>/api/webhook`
    - **Webhook secret**: a long random string (for example `openssl rand -hex 32`)
    - **Subscribe to events**: Issues, Label and Repository (installation events are always sent)
 
    Without webhooks, installations are still discovered on first request and roadmaps refresh on their tier's timer.
-3. **Generate a private key** for the App and note its **App ID**.
-4. **Set the environment variables** `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` (the PEM contents; on one line, newlines may be written as `\n`) and, with webhooks, `GITHUB_APP_WEBHOOK_SECRET`.
-5. **Install the App** on the repositories whose roadmaps you want to serve.
+4. **Generate a private key** for the App and note its **App ID** and its slug (the last part of its public page URL, `https://github.com/apps/<slug>`).
+5. **Set the environment variables** `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` (the PEM contents; on one line, newlines may be written as `\n`), `GITHUB_APP_SLUG` and, with webhooks, `GITHUB_APP_WEBHOOK_SECRET`.
+6. **Install the App** on the repositories whose roadmaps you want to serve.
 
 Webhook deliveries are rejected unless their `X-Hub-Signature-256` signature matches the secret. With webhooks, a repo made private stops being served immediately rather than within a minute.
+
+### Setting a tier
+
+Installations and API keys start on the free tier. Billing is direct for now, so a paid plan is switched on by hand:
+
+```bash
+node scripts/set-tier.js --installation <installation-id> paid   # every repo in an installation
+node scripts/set-tier.js <owner> <repo> paid                     # a repo's installation and/or API key
+node scripts/set-tier.js --installation <installation-id> free   # back to free
+```
+
+The installation id is the number in the installation's settings URL (`github.com/settings/installations/<id>`, or `github.com/organizations/<org>/settings/installations/<id>`) and in the setup page URL. The new tier applies on each repo's next request.
+
+The `<owner> <repo>` form finds the repo's installation from the mapping cached in Redis, so it needs only the Upstash credentials once the repo has been requested; with nothing cached it looks it up on GitHub, which needs `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY`. If it can't tell whether the repo is installed it says so and exits with an error instead of reporting success: use `--installation <id>` then.
 
 ## License
 

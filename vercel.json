@@ -34,6 +34,10 @@
       "use": "@vercel/node"
     },
     {
+      "src": "api/setup.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "public/**",
       "use": "@vercel/static"
     }
@@ -56,6 +60,10 @@
       "src": "/api/webhook",
       "methods": ["POST"],
       "dest": "/api/webhook.js"
+    },
+    {
+      "src": "/setup",
+      "dest": "/api/setup.js"
     },
     {
       "src": "/api/confirm",
