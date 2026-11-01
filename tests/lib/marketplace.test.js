@@ -176,6 +176,12 @@ describe('lib/marketplace', () => {
       expect(await getMarketplaceTier('77')).toBe('paid');
     });
 
+    test('an undated event cannot override a dated one', async () => {
+      await applyPurchaseEvent(purchaseEvent('cancelled', PAID_PLAN, '2026-12-01T00:00:00+00:00'));
+      await applyPurchaseEvent(purchaseEvent('purchased', PAID_PLAN, undefined));
+      expect(await getMarketplaceTier('77')).toBe('free');
+    });
+
     test('ignores other actions and payloads without an account', async () => {
       expect(await applyPurchaseEvent(purchaseEvent('refunded', PAID_PLAN, '2026-11-01'))).toBeNull();
       expect(await applyPurchaseEvent({ action: 'purchased' })).toBeNull();

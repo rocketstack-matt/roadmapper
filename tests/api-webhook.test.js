@@ -377,8 +377,7 @@ describe('api/webhook', () => {
     // Installation 42 covers owner/repo; its account is linked to the plan
     const linkInstallation = (id = 42, repos = ['owner/repo'], tier = 'free') => {
       mockStore.set(`installation:${id}`, { account: 'owner', accountId: '77', repos: JSON.stringify(repos), tier });
-      const ids = JSON.parse(mockStore.get('account-installations:77') || '[]');
-      mockStore.set('account-installations:77', JSON.stringify([...ids, String(id)]));
+      mockStore.set('account-installations:77', { ...(mockStore.get('account-installations:77') || {}), [id]: '1' });
     };
     const verified = (fullName) => {
       mockStore.set(`repo:${fullName}`, { tier: 'free', source: 'app', verifiedAt: '1' });

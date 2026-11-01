@@ -281,18 +281,18 @@ describe('lib/github-app', () => {
       await getInstallationId('owner', 'repo');
 
       expect(mockStore.get('installation:42').accountId).toBe('77');
-      expect(mockStore.get('account-installations:77')).toBe('["42"]');
+      expect(mockStore.get('account-installations:77')).toEqual({ 42: '1' });
     });
 
     test('addInstallationRepos links the account, once', async () => {
       const installation = { id: 42, account: { login: 'owner', id: 77 } };
       await addInstallationRepos(installation, [{ full_name: 'owner/a', private: false }]);
       await addInstallationRepos(installation, [{ full_name: 'owner/b', private: false }]);
-      expect(mockStore.get('account-installations:77')).toBe('["42"]');
+      expect(mockStore.get('account-installations:77')).toEqual({ 42: '1' });
     });
 
     test("getAccountInstallations looks up an organization's installation and links it", async () => {
-      mockStore.set('account-installations:77', '["41"]');
+      mockStore.set('account-installations:77', { 41: '1' });
       axios.get.mockResolvedValue({ data: { id: 42 } });
 
       expect(await getAccountInstallations({ id: 77, login: 'acme', type: 'Organization' })).toEqual(['41', '42']);
@@ -308,7 +308,7 @@ describe('lib/github-app', () => {
 
     test('getAccountInstallations keeps the linked installations when the lookup fails', async () => {
       const error = jest.spyOn(console, 'error').mockImplementation(() => {});
-      mockStore.set('account-installations:77', '["41"]');
+      mockStore.set('account-installations:77', { 41: '1' });
       axios.get.mockRejectedValueOnce(notFound());
       expect(await getAccountInstallations({ id: 77, login: 'acme', type: 'Organization' })).toEqual(['41']);
       expect(error).not.toHaveBeenCalled();
