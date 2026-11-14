@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Prepares an Amp orb: installs the Node.js major that Vercel runs (engines.node
+# in package.json) and the npm dependencies. Idempotent; a warm run takes seconds.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+step() { printf '==> %s\n' "$*"; }
+start=$SECONDS
+
+node_major="$(jq -r '.engines.node' package.json | cut -d. -f1)"
+node_dir="$HOME/.local/node-$node_major"
+
+if "$node_dir/bin/node" --version 2>/dev/null | grep -q "^v$node_major\."; then
+  step "Node $("$node_dir/bin/node" --version) already installed"
+else
+  step "Installing the latest Node $node_major.x into $node_dir"
+  base="https://nodejs.org/dist/latest-v$node_major.x"
+  tarball="$(curl -fsSL "$base/SHASUMS256.txt" | awk '/linux-x64\.tar\.xz$/ { print $2 }')"
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"' EXIT
+  curl -fsSL -o "$tmp/$tarball" "$base/$tarball"
+  (cd "$tmp" && curl -fsSL "$base/SHASUMS256.txt" | grep " $tarball\$" | sha256sum -c --quiet)
+  rm -rf "$node_dir"
+  mkdir -p "$node_dir"
+  tar -xJf "$tmp/$tarball" -C "$node_dir" --strip-components=1
+fi
+
+# Put this Node first on PATH for login shells, which Amp and its services use.
+# Amp records PATH entries that setup adds to the profile in the snapshot.
+path_line="export PATH=\"$node_dir/bin:\$PATH\" # roadmapper: Node $node_major"
+if ! grep -Fqx "$path_line" "$HOME/.bash_profile" 2>/dev/null; then
+  step "Adding Node $node_major to PATH in ~/.bash_profile"
+  printf '\n%s\n' "$path_line" >> "$HOME/.bash_profile"
+fi
+export PATH="$node_dir/bin:$PATH"
+
+step "npm ci (node $(node --version), npm $(npm --version))"
+npm ci --no-audit --no-fund
+
+step "Setup finished in $((SECONDS - start))s"

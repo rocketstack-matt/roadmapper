@@ -28,6 +28,8 @@ npx -y node@24 node_modules/.bin/jest       # suite on the deployed Node major
 npm run run                                 # local server on :5002 (PORT overrides); note: `run`, not `start`
 ```
 
+In Amp orbs, `.agents/setup` installs Node 24 (first on PATH) and runs `npm ci`, and `amp orb services ensure` starts the dev server from `.amp/services.yaml` with a portal.
+
 There is no `lint` or `build` script. Before pushing, run `npm test`, and the Node 24 run when you touch runtime-sensitive code. **No GitHub Actions workflows exist** (`.github` is gitignored), so the only check on a PR is the Vercel deployment and nothing else runs the tests.
 
 ## Environment and external services

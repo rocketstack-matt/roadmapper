@@ -1,0 +1,9 @@
+services:
+  web:
+    # server.js listens on $PORT. Without Redis credentials in .env, every repo
+    # is served unrestricted and uncached.
+    command: npm run run
+    health: /
+    portal:
+      title: Roadmapper
+      description: Local Express server. Try /rocketstack-matt/roadmapper for a roadmap; GitHub calls are unauthenticated (60/h) unless GITHUB_TOKEN is set.
